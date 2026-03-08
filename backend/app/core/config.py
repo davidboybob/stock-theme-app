@@ -3,16 +3,8 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    kis_app_key: str = ""
-    kis_app_secret: str = ""
-    kis_mock: bool = True
-    kis_account_number: str = ""
-
-    @property
-    def kis_base_url(self) -> str:
-        if self.kis_mock:
-            return "https://openapivts.koreainvestment.com:29443"
-        return "https://openapi.koreainvestment.com:9443"
+    naver_base_url: str = "https://polling.finance.naver.com"
+    request_timeout: float = 10.0
 
     class Config:
         env_file = ".env"

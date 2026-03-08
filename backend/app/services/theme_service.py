@@ -7,7 +7,7 @@ from statistics import mean
 from typing import List
 from app.models.theme import Theme, ThemeStrength, ThemeDetail
 from app.models.stock import StockPrice
-from app.services.kis_client import kis_client
+from app.services.naver_client import naver_client as kis_client
 
 _themes_cache: List[Theme] = []
 

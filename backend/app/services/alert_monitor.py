@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import List, Set
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.models.theme import Alert, AlertCreate, AlertTriggered
-from app.services.kis_client import kis_client
+from app.services.naver_client import naver_client as kis_client
 from app.services.theme_service import get_theme_strength, get_theme_by_id
 
 _alerts_file = Path(__file__).parent.parent / "data" / "alerts.json"
