@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchAlerts, createAlert, deleteAlert, WS_URL } from "../api/client";
+import { fetchAlerts, createAlert, deleteAlert, toggleAlert, fetchAlertHistory, WS_URL } from "../api/client";
 import type { AlertCreate } from "../api/client";
+import Toast from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 
 const THEME_OPTIONS = [
   { id: "ai", name: "인공지능(AI)" },
@@ -16,6 +18,7 @@ const THEME_OPTIONS = [
 
 export default function Alerts() {
   const queryClient = useQueryClient();
+  const { toasts, show, remove } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
   const [wsMessages, setWsMessages] = useState<string[]>([]);
   const [form, setForm] = useState<AlertCreate>({
@@ -32,12 +35,29 @@ export default function Alerts() {
 
   const createMutation = useMutation({
     mutationFn: createAlert,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      show("알림이 추가되었습니다.", "success");
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: deleteAlert,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["alerts"] });
+      show("알림이 삭제되었습니다.", "info");
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: toggleAlert,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+  });
+
+  const { data: history } = useQuery({
+    queryKey: ["alert-history"],
+    queryFn: fetchAlertHistory,
+    refetchInterval: 60000,
   });
 
   useEffect(() => {
@@ -143,12 +163,21 @@ export default function Alerts() {
                 {alert.condition === "above" ? "≥" : "≤"} {alert.threshold}%
               </span>
             </div>
-            <button
-              className="delete-btn"
-              onClick={() => deleteMutation.mutate(alert.id)}
-            >
-              삭제
-            </button>
+            <div className="alert-actions">
+              <button
+                className={`toggle-btn ${alert.is_active ? "active" : "inactive"}`}
+                onClick={() => toggleMutation.mutate(alert.id)}
+                title={alert.is_active ? "비활성화" : "활성화"}
+              >
+                {alert.is_active ? "ON" : "OFF"}
+              </button>
+              <button
+                className="delete-btn"
+                onClick={() => deleteMutation.mutate(alert.id)}
+              >
+                삭제
+              </button>
+            </div>
           </div>
         ))}
       </div>
@@ -162,6 +191,26 @@ export default function Alerts() {
           <div key={i} className="ws-message">
             {msg}
           </div>
+        ))}
+      </div>
+
+      <h2>알림 발생 이력</h2>
+      <div className="history-list">
+        {(!history || history.length === 0) && <div className="empty">이력이 없습니다.</div>}
+        {history?.map((h) => (
+          <div key={h.id} className="history-item">
+            <span className="history-name">{h.target_name}</span>
+            <span className="history-value">
+              {h.condition === "above" ? "≥" : "≤"} {h.threshold}% → <strong>{h.current_value.toFixed(2)}%</strong>
+            </span>
+            <span className="history-time">{new Date(h.triggered_at).toLocaleString("ko-KR")}</span>
+          </div>
+        ))}
+      </div>
+
+      <div className="toast-container">
+        {toasts.map(t => (
+          <Toast key={t.id} message={t.message} type={t.type} onClose={() => remove(t.id)} />
         ))}
       </div>
     </div>

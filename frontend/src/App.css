@@ -12,6 +12,28 @@
   --border: #e2e8f0;
   --text: #1a202c;
   --text-secondary: #718096;
+  --header-bg: #1a202c;
+  --index-bar-bg: #2d3748;
+  --table-header-bg: #f0f4f8;
+  --table-row-hover: #f7f8fa;
+  --skeleton-base: #e0e0e0;
+  --skeleton-highlight: #f0f0f0;
+}
+
+[data-theme="dark"] {
+  --up: #fc8181;
+  --down: #63b3ed;
+  --bg: #121212;
+  --card-bg: #1e1e1e;
+  --border: #333333;
+  --text: #e0e0e0;
+  --text-secondary: #aaaaaa;
+  --header-bg: #0d0d1a;
+  --index-bar-bg: #161625;
+  --table-header-bg: #2a2a2a;
+  --table-row-hover: #2a2a2a;
+  --skeleton-base: #2a2a2a;
+  --skeleton-highlight: #3a3a3a;
 }
 
 body {
@@ -35,12 +57,13 @@ body {
 
 /* Header */
 .app-header {
-  background: #1a202c;
+  background: var(--header-bg);
   color: #fff;
   position: sticky;
   top: 0;
   z-index: 100;
   box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+  transition: background 0.2s;
 }
 
 .header-top {
@@ -81,8 +104,9 @@ body {
   display: flex;
   gap: 24px;
   padding: 8px 24px;
-  background: #2d3748;
+  background: var(--index-bar-bg);
   font-size: 0.85rem;
+  transition: background 0.2s;
 }
 
 .index-item {
@@ -160,8 +184,22 @@ body {
 /* Theme Grid */
 .theme-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
+}
+
+@media (max-width: 1024px) {
+  .theme-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 768px) {
+  .theme-grid {
+    grid-template-columns: 1fr;
+    padding: 0.75rem 0;
+    gap: 0.75rem;
+  }
 }
 
 .theme-card {
@@ -172,6 +210,7 @@ body {
   cursor: pointer;
   transition: transform 0.15s, box-shadow 0.15s;
   border-top: 3px solid var(--border);
+  position: relative;
 }
 
 .theme-card:hover {
@@ -241,8 +280,14 @@ body {
 }
 
 /* Stock Table */
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
 .stock-table {
   width: 100%;
+  min-width: 600px;
   border-collapse: collapse;
   background: var(--card-bg);
   border: 1px solid var(--border);
@@ -250,8 +295,19 @@ body {
   overflow: hidden;
 }
 
+@media (max-width: 768px) {
+  .table-wrapper {
+    margin: 0 -0.5rem;
+  }
+  .stock-table th,
+  .stock-table td {
+    padding: 0.5rem 0.6rem;
+    font-size: 0.82rem;
+  }
+}
+
 .stock-table th {
-  background: #f0f4f8;
+  background: var(--table-header-bg);
   padding: 10px 14px;
   text-align: right;
   font-size: 0.8rem;
@@ -277,7 +333,7 @@ body {
 }
 
 .stock-table tbody tr:hover {
-  background: #f7f8fa;
+  background: var(--table-row-hover);
 }
 
 /* Alert Form */
@@ -397,6 +453,130 @@ body {
   margin-bottom: 4px;
 }
 
+/* View Tabs */
+.view-tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--border);
+  border-radius: 8px;
+  padding: 3px;
+}
+
+.view-tabs button {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.view-tabs button:hover {
+  border-color: transparent;
+  color: var(--text);
+}
+
+.view-tabs button.active {
+  background: var(--card-bg);
+  color: var(--text);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+/* Chart */
+.chart-container {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px 16px;
+}
+
+/* Price Range Bar */
+.price-range-list {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.price-range-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.price-range-name {
+  width: 80px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.price-range-bar-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.price-range-low,
+.price-range-high {
+  flex-shrink: 0;
+  width: 64px;
+}
+
+.price-range-low {
+  text-align: right;
+}
+
+.price-range-high {
+  text-align: left;
+}
+
+.price-range-bar {
+  flex: 1;
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  position: relative;
+}
+
+.price-range-fill {
+  height: 100%;
+  background: var(--text-secondary);
+  border-radius: 4px;
+}
+
+.price-range-marker {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+.price-range-rate {
+  width: 64px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+  flex-shrink: 0;
+}
+
 /* States */
 .loading {
   color: var(--text-secondary);
@@ -414,4 +594,102 @@ body {
   color: var(--text-secondary);
   font-size: 0.85rem;
   padding: 12px 0;
+}
+
+.history-chart { margin: 1.5rem 0; }
+.history-chart h3 { font-size: 1rem; margin-bottom: 0.5rem; opacity: 0.8; }
+.history-empty { text-align: center; padding: 1rem; opacity: 0.5; font-size: 0.9rem; }
+
+/* 스켈레톤 UI */
+.skeleton-card {
+  cursor: default;
+  pointer-events: none;
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--skeleton-base) 25%, var(--skeleton-highlight) 50%, var(--skeleton-base) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+  border-radius: 4px;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-rank {
+  width: 2rem;
+  height: 1.2rem;
+  margin-bottom: 0.6rem;
+}
+
+.skeleton-title {
+  width: 70%;
+  height: 1.4rem;
+  margin-bottom: 0.8rem;
+}
+
+.skeleton-rate {
+  width: 50%;
+  height: 2rem;
+  margin-bottom: 0.6rem;
+}
+
+.skeleton-counts {
+  width: 90%;
+  height: 1rem;
+}
+
+/* ===== 모바일 반응형 (768px 이하) ===== */
+@media (max-width: 768px) {
+  /* IndexBar */
+  .index-bar {
+    padding: 0.4rem 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+  .index-item {
+    font-size: 0.8rem;
+  }
+
+  /* 네비게이션 */
+  .nav-link {
+    font-size: 0.85rem;
+  }
+
+  /* Header */
+  .header-top {
+    padding: 10px 16px;
+  }
+
+  /* 앱 메인 패딩 */
+  .app-main {
+    padding: 16px;
+  }
+
+  /* Page */
+  .page {
+    gap: 14px;
+  }
+  .page-header h1 {
+    font-size: 1.3rem;
+  }
+
+  /* Strength Summary */
+  .strength-summary {
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  /* Alert Form */
+  .alert-form {
+    gap: 0.6rem;
+    max-width: 100%;
+  }
+
+  /* Chart */
+  .chart-container {
+    padding: 0.75rem 0;
+  }
 }

@@ -3,11 +3,16 @@ from typing import List, Optional
 from app.models.stock import StockPrice
 
 
+class StockItem(BaseModel):
+    code: str
+    name: str
+
+
 class Theme(BaseModel):
     id: str
     name: str
     description: Optional[str] = None
-    stocks: List[str]
+    stocks: List[StockItem]
 
 
 class ThemeStrength(BaseModel):

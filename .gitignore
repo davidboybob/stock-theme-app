@@ -21,6 +21,13 @@ backend/app/models/__pycache__/
 frontend/node_modules/
 frontend/dist/
 
+# Database
+*.db
+
+# IDE
+.vscode/
+.idea/
+
 # Misc
 .DS_Store
 *.log

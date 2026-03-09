@@ -29,6 +29,14 @@ export interface StockPrice {
   open_price: number;
 }
 
+export interface StockDetail extends StockPrice {
+  week52_high: number | null;
+  week52_low: number | null;
+  per: number | null;
+  pbr: number | null;
+  market_cap: number | null;
+}
+
 export interface ThemeDetail {
   id: string;
   name: string;
@@ -63,7 +71,18 @@ export interface AlertCreate {
   threshold: number;
 }
 
+export interface ThemeHistory {
+  avg_change_rate: number;
+  rising_count: number;
+  falling_count: number;
+  total: number;
+  recorded_at: string;
+}
+
 // API functions
+export const fetchStockDetail = (code: string) =>
+  apiClient.get<StockDetail>(`/stocks/${code}/detail`).then((r) => r.data);
+
 export const fetchThemes = () =>
   apiClient.get<ThemeStrength[]>("/themes").then((r) => r.data);
 
@@ -81,6 +100,25 @@ export const createAlert = (data: AlertCreate) =>
 
 export const deleteAlert = (id: string) =>
   apiClient.delete(`/alerts/${id}`).then((r) => r.data);
+
+export const toggleAlert = (id: string) =>
+  apiClient.patch<Alert>(`/alerts/${id}`).then((r) => r.data);
+
+export interface AlertHistory {
+  id: number;
+  alert_id: string;
+  target_name: string;
+  current_value: number;
+  threshold: number;
+  condition: string;
+  triggered_at: string;
+}
+
+export const fetchAlertHistory = () =>
+  apiClient.get<AlertHistory[]>("/alerts/history").then((r) => r.data);
+
+export const fetchThemeHistory = (id: string, period = "1d") =>
+  apiClient.get<ThemeHistory[]>(`/themes/${id}/history`, { params: { period } }).then((r) => r.data);
 
 export const WS_URL =
   (import.meta.env.VITE_WS_URL || "ws://localhost:8000") + "/api/ws/alerts";

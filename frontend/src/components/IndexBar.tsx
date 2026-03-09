@@ -24,19 +24,41 @@ function IndexItem({ index }: { index: IndexPrice }) {
   );
 }
 
-export default function IndexBar() {
+interface IndexBarProps {
+  onToggleTheme: () => void;
+  theme: "light" | "dark";
+}
+
+export default function IndexBar({ onToggleTheme, theme }: IndexBarProps) {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["indices"],
     queryFn: fetchIndices,
     refetchInterval: 30000,
   });
 
-  if (isLoading) return <div className="index-bar">지수 로딩 중...</div>;
-  if (isError) return <div className="index-bar index-error">지수 조회 실패</div>;
+  if (isLoading) return (
+    <div className="index-bar">
+      <span>지수 로딩 중...</span>
+      <button className="theme-toggle" onClick={onToggleTheme} title="테마 전환">
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
+    </div>
+  );
+  if (isError) return (
+    <div className="index-bar index-error">
+      <span>지수 조회 실패</span>
+      <button className="theme-toggle" onClick={onToggleTheme} title="테마 전환">
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
+    </div>
+  );
 
   return (
     <div className="index-bar">
       {data?.map((idx) => <IndexItem key={idx.code} index={idx} />)}
+      <button className="theme-toggle" onClick={onToggleTheme} title="테마 전환" style={{ marginLeft: "auto" }}>
+        {theme === "dark" ? "☀️" : "🌙"}
+      </button>
     </div>
   );
 }

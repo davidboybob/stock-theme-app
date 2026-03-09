@@ -1,9 +1,14 @@
+import { useState } from "react";
 import { BrowserRouter, Routes, Route, NavLink } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import ErrorBoundary from "./components/ErrorBoundary";
 import IndexBar from "./components/IndexBar";
+import SearchBar from "./components/SearchBar";
+import StockModal from "./components/StockModal";
 import Dashboard from "./pages/Dashboard";
 import ThemeDetail from "./pages/ThemeDetail";
 import Alerts from "./pages/Alerts";
+import { useTheme } from "./hooks/useTheme";
 import "./App.css";
 
 const queryClient = new QueryClient({
@@ -16,7 +21,11 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const [modalCode, setModalCode] = useState<string | null>(null);
+  const { theme, toggle } = useTheme();
+
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
         <div className="app">
@@ -32,7 +41,8 @@ export default function App() {
                 </NavLink>
               </nav>
             </div>
-            <IndexBar />
+            <IndexBar onToggleTheme={toggle} theme={theme} />
+            <SearchBar onSelect={setModalCode} />
           </header>
 
           <main className="app-main">
@@ -43,7 +53,12 @@ export default function App() {
             </Routes>
           </main>
         </div>
+
+        {modalCode && (
+          <StockModal code={modalCode} onClose={() => setModalCode(null)} />
+        )}
       </BrowserRouter>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

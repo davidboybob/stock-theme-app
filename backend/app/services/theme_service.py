@@ -30,7 +30,7 @@ def get_theme_by_id(theme_id: str) -> Theme | None:
 async def get_theme_strength(theme: Theme) -> ThemeStrength:
     try:
         prices = await asyncio.gather(
-            *[kis_client.get_stock_price(code) for code in theme.stocks],
+            *[kis_client.get_stock_price(s.code) for s in theme.stocks],
             return_exceptions=True,
         )
         valid_prices = [p for p in prices if isinstance(p, StockPrice)]
@@ -63,7 +63,7 @@ async def get_theme_detail(theme_id: str) -> ThemeDetail | None:
         return None
 
     prices_raw = await asyncio.gather(
-        *[kis_client.get_stock_price(code) for code in theme.stocks],
+        *[kis_client.get_stock_price(s.code) for s in theme.stocks],
         return_exceptions=True,
     )
     stock_prices = [p for p in prices_raw if isinstance(p, StockPrice)]
