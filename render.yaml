@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: stock-theme-backend
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: ALLOWED_ORIGINS
+        sync: false   # Vercel 배포 후 대시보드에서 직접 입력
+    disk:
+      name: db-data
+      mountPath: /opt/render/project/src/app/data
+      sizeGB: 1
