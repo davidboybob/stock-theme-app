@@ -1,53 +1,26 @@
 from __future__ import annotations
 
-import aiosqlite
-from pathlib import Path
+import os
+from supabase import create_client, Client
 
-DB_PATH = Path(__file__).parent / "data" / "alerts.db"
+_client: Client | None = None
 
 
-async def get_db() -> aiosqlite.Connection:
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    return db
+def get_supabase() -> Client:
+    global _client
+    if _client is None:
+        url = os.environ["SUPABASE_URL"]
+        key = os.environ["SUPABASE_KEY"]
+        _client = create_client(url, key)
+    return _client
 
 
 async def init_db() -> None:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS alerts (
-                id TEXT PRIMARY KEY,
-                target_type TEXT NOT NULL,
-                target_id TEXT NOT NULL,
-                target_name TEXT NOT NULL,
-                condition TEXT NOT NULL,
-                threshold REAL NOT NULL,
-                is_active INTEGER NOT NULL DEFAULT 1,
-                created_at TEXT NOT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS alert_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                alert_id TEXT NOT NULL,
-                target_name TEXT NOT NULL,
-                current_value REAL NOT NULL,
-                threshold REAL NOT NULL,
-                condition TEXT NOT NULL,
-                triggered_at TEXT NOT NULL
-            )
-        """)
-        await db.execute("""
-            CREATE TABLE IF NOT EXISTS theme_history (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                theme_id TEXT NOT NULL,
-                theme_name TEXT NOT NULL,
-                avg_change_rate REAL NOT NULL,
-                rising_count INTEGER NOT NULL,
-                falling_count INTEGER NOT NULL,
-                total INTEGER NOT NULL,
-                recorded_at TEXT NOT NULL
-            )
-        """)
-        await db.commit()
+    """Supabase는 대시보드에서 테이블을 미리 생성하므로 연결 확인만 수행"""
+    try:
+        client = get_supabase()
+        client.table("alerts").select("id").limit(1).execute()
+    except Exception as e:
+        # 테이블이 없으면 경고만 출력 (서버는 기동)
+        import warnings
+        warnings.warn(f"Supabase 연결 확인 실패: {e}")

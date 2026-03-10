@@ -1,31 +1,80 @@
 from __future__ import annotations
 
 import uuid
+import asyncio
 from datetime import datetime
-from typing import List, Optional, Set
+from typing import List, Set, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-import aiosqlite
 
-from app.db import get_db, DB_PATH
+from app.db import get_supabase
 from app.models.theme import Alert, AlertCreate, AlertTriggered
 from app.services.naver_client import naver_client as kis_client
-from app.services.theme_service import get_theme_strength, get_theme_by_id, get_all_theme_strengths
+from app.services.theme_service import get_theme_strength, get_theme_by_id
 
 _websocket_clients: Set = set()
 _scheduler: AsyncIOScheduler | None = None
 
 
+def _db_get_alerts() -> List[Alert]:
+    sb = get_supabase()
+    res = sb.table("alerts").select("*").order("created_at", desc=True).execute()
+    return [Alert(**{**row, "is_active": bool(row["is_active"])}) for row in (res.data or [])]
+
+
+def _db_create_alert(alert: Alert) -> None:
+    sb = get_supabase()
+    sb.table("alerts").insert({
+        "id": alert.id,
+        "target_type": alert.target_type,
+        "target_id": alert.target_id,
+        "target_name": alert.target_name,
+        "condition": alert.condition,
+        "threshold": alert.threshold,
+        "is_active": alert.is_active,
+        "created_at": alert.created_at,
+    }).execute()
+
+
+def _db_delete_alert(alert_id: str) -> bool:
+    sb = get_supabase()
+    res = sb.table("alerts").delete().eq("id", alert_id).execute()
+    return len(res.data or []) > 0
+
+
+def _db_toggle_alert(alert_id: str) -> Optional[Alert]:
+    sb = get_supabase()
+    row = sb.table("alerts").select("*").eq("id", alert_id).single().execute()
+    if not row.data:
+        return None
+    new_active = not row.data["is_active"]
+    updated = sb.table("alerts").update({"is_active": new_active}).eq("id", alert_id).execute()
+    if not updated.data:
+        return None
+    d = updated.data[0]
+    return Alert(**{**d, "is_active": bool(d["is_active"])})
+
+
+def _db_insert_history(alert_id: str, target_name: str, current_value: float,
+                        threshold: float, condition: str, triggered_at: str) -> None:
+    sb = get_supabase()
+    sb.table("alert_history").insert({
+        "alert_id": alert_id,
+        "target_name": target_name,
+        "current_value": current_value,
+        "threshold": threshold,
+        "condition": condition,
+        "triggered_at": triggered_at,
+    }).execute()
+
+
+def _db_get_history(limit: int = 50) -> list:
+    sb = get_supabase()
+    res = sb.table("alert_history").select("*").order("triggered_at", desc=True).limit(limit).execute()
+    return res.data or []
+
+
 async def get_alerts() -> List[Alert]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM alerts ORDER BY created_at DESC") as cursor:
-            rows = await cursor.fetchall()
-    result = []
-    for row in rows:
-        row_dict = dict(row)
-        row_dict["is_active"] = bool(row_dict["is_active"])
-        result.append(Alert(**row_dict))
-    return result
+    return await asyncio.to_thread(_db_get_alerts)
 
 
 async def create_alert(data: AlertCreate) -> Alert:
@@ -41,38 +90,16 @@ async def create_alert(data: AlertCreate) -> Alert:
         is_active=True,
         created_at=datetime.now().isoformat(),
     )
-    async with aiosqlite.connect(DB_PATH) as db:
-        await db.execute(
-            "INSERT INTO alerts VALUES (?,?,?,?,?,?,?,?)",
-            (alert.id, alert.target_type, alert.target_id, alert.target_name,
-             alert.condition, alert.threshold, int(alert.is_active), alert.created_at)
-        )
-        await db.commit()
+    await asyncio.to_thread(_db_create_alert, alert)
     return alert
 
 
-async def toggle_alert(alert_id: str) -> Optional[Alert]:
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)) as cursor:
-            row = await cursor.fetchone()
-        if not row:
-            return None
-        new_active = 0 if row["is_active"] else 1
-        await db.execute("UPDATE alerts SET is_active=? WHERE id=?", (new_active, alert_id))
-        await db.commit()
-        async with db.execute("SELECT * FROM alerts WHERE id=?", (alert_id,)) as cursor:
-            updated = await cursor.fetchone()
-    row_dict = dict(updated)
-    row_dict["is_active"] = bool(row_dict["is_active"])
-    return Alert(**row_dict)
-
-
 async def delete_alert(alert_id: str) -> bool:
-    async with aiosqlite.connect(DB_PATH) as db:
-        cursor = await db.execute("DELETE FROM alerts WHERE id=?", (alert_id,))
-        await db.commit()
-    return cursor.rowcount > 0
+    return await asyncio.to_thread(_db_delete_alert, alert_id)
+
+
+async def toggle_alert(alert_id: str) -> Optional[Alert]:
+    return await asyncio.to_thread(_db_toggle_alert, alert_id)
 
 
 def register_websocket(ws) -> None:
@@ -121,29 +148,35 @@ async def _check_alerts() -> None:
                     condition=alert.condition,
                     triggered_at=datetime.now().isoformat(),
                 )
-                async with aiosqlite.connect(DB_PATH) as db:
-                    await db.execute(
-                        "INSERT INTO alert_history (alert_id, target_name, current_value, threshold, condition, triggered_at) VALUES (?,?,?,?,?,?)",
-                        (alert.id, alert.target_name, current_value, alert.threshold, alert.condition, notification.triggered_at)
-                    )
-                    await db.commit()
+                await asyncio.to_thread(
+                    _db_insert_history,
+                    alert.id, alert.target_name, current_value,
+                    alert.threshold, alert.condition, notification.triggered_at,
+                )
                 await _broadcast(notification.model_dump())
         except Exception:
             pass
 
 
 async def _snapshot_themes() -> None:
-    """10분마다 전체 테마 강도 스냅샷 저장"""
     try:
+        from app.services.theme_service import get_all_theme_strengths
         strengths = await get_all_theme_strengths()
         now = datetime.now().isoformat()
-        async with aiosqlite.connect(DB_PATH) as db:
-            for s in strengths:
-                await db.execute(
-                    "INSERT INTO theme_history (theme_id, theme_name, avg_change_rate, rising_count, falling_count, total, recorded_at) VALUES (?,?,?,?,?,?,?)",
-                    (s.theme_id, s.theme_name, s.avg_change_rate, s.rising_count, s.falling_count, s.total, now)
-                )
-            await db.commit()
+        sb = get_supabase()
+        rows = [
+            {
+                "theme_id": s.theme_id,
+                "theme_name": s.theme_name,
+                "avg_change_rate": s.avg_change_rate,
+                "rising_count": s.rising_count,
+                "falling_count": s.falling_count,
+                "total": s.total,
+                "recorded_at": now,
+            }
+            for s in strengths
+        ]
+        await asyncio.to_thread(lambda: sb.table("theme_history").insert(rows).execute())
     except Exception:
         pass
 

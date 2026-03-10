@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta
 from typing import List
 
-import aiosqlite
 from fastapi import APIRouter, HTTPException
 
-from app.db import DB_PATH
+from app.db import get_supabase
 from app.models.theme import ThemeStrength, ThemeDetail, Theme
 from app.services.theme_service import (
     load_themes,
@@ -28,15 +28,17 @@ async def get_theme_history(theme_id: str, period: str = "1d"):
     hours = 24 if period == "1d" else 1
     since = (datetime.now() - timedelta(hours=hours)).isoformat()
 
-    async with aiosqlite.connect(DB_PATH) as db:
-        db.row_factory = aiosqlite.Row
-        async with db.execute(
-            "SELECT avg_change_rate, rising_count, falling_count, total, recorded_at FROM theme_history WHERE theme_id=? AND recorded_at>=? ORDER BY recorded_at ASC",
-            (theme_id, since)
-        ) as cursor:
-            rows = await cursor.fetchall()
+    def _fetch():
+        sb = get_supabase()
+        return sb.table("theme_history") \
+            .select("avg_change_rate,rising_count,falling_count,total,recorded_at") \
+            .eq("theme_id", theme_id) \
+            .gte("recorded_at", since) \
+            .order("recorded_at") \
+            .execute()
 
-    return [dict(row) for row in rows]
+    res = await asyncio.to_thread(_fetch)
+    return res.data or []
 
 
 @router.get("/{theme_id}", response_model=ThemeDetail)
