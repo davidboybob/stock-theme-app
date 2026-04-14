@@ -8,6 +8,7 @@ import StockModal from "./components/StockModal";
 import Dashboard from "./pages/Dashboard";
 import ThemeDetail from "./pages/ThemeDetail";
 import Alerts from "./pages/Alerts";
+import Trading from "./pages/Trading";
 import { useTheme } from "./hooks/useTheme";
 import "./App.css";
 
@@ -39,6 +40,9 @@ export default function App() {
                 <NavLink to="/alerts" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                   알림
                 </NavLink>
+                <NavLink to="/trading" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                  자동매매
+                </NavLink>
               </nav>
             </div>
             <IndexBar onToggleTheme={toggle} theme={theme} />
@@ -50,6 +54,7 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/themes/:id" element={<ThemeDetail />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/trading" element={<Trading />} />
             </Routes>
           </main>
         </div>

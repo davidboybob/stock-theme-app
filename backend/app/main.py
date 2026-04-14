@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.api.routes import themes, stocks, alerts
+from app.api.routes import themes, stocks, alerts, trading
 from app.services.alert_monitor import start_scheduler, stop_scheduler
 from app.db import init_db
 
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(themes.router, prefix="/api")
 app.include_router(stocks.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
+app.include_router(trading.router, prefix="/api")
 
 
 @app.get("/api/health")

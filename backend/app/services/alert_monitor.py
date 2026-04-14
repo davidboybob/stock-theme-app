@@ -182,10 +182,12 @@ async def _snapshot_themes() -> None:
 
 
 def start_scheduler() -> None:
+    from app.services.trading_engine import run_trading_cycle
     global _scheduler
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(_check_alerts, "interval", minutes=1, id="alert_monitor")
     _scheduler.add_job(_snapshot_themes, "interval", minutes=10, id="theme_snapshot")
+    _scheduler.add_job(run_trading_cycle, "interval", minutes=1, id="trading_cycle")
     _scheduler.start()
 
 

@@ -122,3 +122,11 @@ export const fetchThemeHistory = (id: string, period = "1d") =>
 
 export const WS_URL =
   (import.meta.env.VITE_WS_URL || "ws://localhost:8000") + "/api/ws/alerts";
+
+export interface StockSearchResult {
+  code: string;
+  name: string;
+}
+
+export const searchStocks = (q: string) =>
+  apiClient.get<StockSearchResult[]>("/stocks/search", { params: { q } }).then((r) => r.data);
