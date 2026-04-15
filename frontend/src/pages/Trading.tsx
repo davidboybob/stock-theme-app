@@ -343,7 +343,7 @@ export default function Trading() {
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "var(--card-bg)", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%" }}>
             <h3 style={{ margin: "0 0 12px", fontSize: "1rem", fontWeight: 700 }}>자동매매 시작 확인</h3>
-            <p style={{ margin: "0 0 20px", fontSize: "0.875rem", lineHeight: 1.6, color: "#374151" }}>
+            <p style={{ margin: "0 0 20px", fontSize: "0.875rem", lineHeight: 1.6, color: "var(--text-muted)" }}>
               모의투자 모드로 자동매매를 시작합니다.<br/>실거래 API 미연동 상태이므로 실제 주문은 발생하지 않습니다.
             </p>
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
