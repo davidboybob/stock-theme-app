@@ -3,6 +3,7 @@ from __future__ import annotations
 import httpx
 import xml.etree.ElementTree as ET
 import asyncio
+from datetime import datetime, timedelta
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 CHART_URL = "https://fchart.stock.naver.com/sise.nhn"
@@ -14,12 +15,22 @@ HEADERS = {
 
 _semaphore = asyncio.Semaphore(5)
 
+_cache: dict[str, tuple[list[int], datetime]] = {}
+_CACHE_TTL = timedelta(minutes=5)
+
 
 async def get_daily_close_prices(code: str, count: int = 30) -> list[int]:
     """네이버 금융 차트 API에서 일봉 종가 리스트 반환 (최신순 정렬).
 
     Returns: 최신 → 과거 순서의 종가 리스트 (int)
     """
+    cache_key = f"{code}:{count}"
+    cached = _cache.get(cache_key)
+    if cached is not None:
+        prices, cached_at = cached
+        if datetime.now() - cached_at < _CACHE_TTL:
+            return prices
+
     params = {
         "symbol": code,
         "timeframe": "day",
@@ -56,4 +67,5 @@ async def get_daily_close_prices(code: str, count: int = 30) -> list[int]:
 
     # 최신순 정렬 (XML은 과거→최신 순서)
     prices.reverse()
+    _cache[cache_key] = (prices, datetime.now())
     return prices

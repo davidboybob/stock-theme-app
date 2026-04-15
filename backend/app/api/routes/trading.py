@@ -16,6 +16,7 @@ from app.services.trading_engine import (
     get_config, update_config, toggle_engine,
     register_trading_ws, unregister_trading_ws,
 )
+from app.services.naver_client import naver_client
 
 router = APIRouter(tags=["trading"])
 
@@ -108,7 +109,19 @@ def _db_get_positions() -> list:
 
 @router.get("/trading/positions", response_model=List[Position])
 async def get_positions():
-    return await asyncio.to_thread(_db_get_positions)
+    positions = await asyncio.to_thread(_db_get_positions)
+    # Enrich with current price
+    enriched = []
+    for p in positions:
+        try:
+            stock = await naver_client.get_stock_price(p["stock_code"])
+            current_price = stock.current_price
+            unrealized_pnl = (current_price - p["entry_price"]) * p["quantity"]
+            return_rate = ((current_price - p["entry_price"]) / p["entry_price"] * 100) if p["entry_price"] > 0 else 0.0
+            enriched.append({**p, "current_price": current_price, "unrealized_profit_loss": unrealized_pnl, "return_rate": round(return_rate, 2)})
+        except Exception:
+            enriched.append(p)
+    return enriched
 
 
 # ─── Trade History ────────────────────────────────────────────────────────────

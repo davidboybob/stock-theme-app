@@ -46,6 +46,10 @@ class Position(BaseModel):
     stop_loss_price: int
     take_profit_price: int
     entered_at: str
+    # New fields (optional, enriched at query time)
+    current_price: Optional[int] = None
+    unrealized_profit_loss: Optional[int] = None
+    return_rate: Optional[float] = None
 
 
 class TradeHistory(BaseModel):

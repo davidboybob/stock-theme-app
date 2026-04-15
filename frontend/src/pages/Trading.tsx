@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getTradingConfig, updateTradingConfig, toggleEngine, resetPaperBalance,
@@ -14,7 +14,10 @@ export default function Trading() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ code: string; name: string }[]>([]);
   const [configForm, setConfigForm] = useState<Partial<TradingConfig>>({});
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectDelay = useRef(1000);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { data: config } = useQuery({ queryKey: ["trading-config"], queryFn: getTradingConfig, refetchInterval: 30000 });
   const { data: watchlist = [] } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist });
@@ -47,10 +50,11 @@ export default function Trading() {
   });
 
   // WebSocket 연결
-  useEffect(() => {
+  const connectWs = useCallback(() => {
     const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
     const ws = new WebSocket(`${protocol}//${window.location.host}/api/ws/trading`);
     wsRef.current = ws;
+
     ws.onmessage = (e) => {
       const signal: TradingSignal = JSON.parse(e.data);
       setSignalLog((prev) => [signal, ...prev].slice(0, 50));
@@ -58,8 +62,30 @@ export default function Trading() {
       qc.invalidateQueries({ queryKey: ["trade-history"] });
       qc.invalidateQueries({ queryKey: ["trading-config"] });
     };
-    return () => ws.close();
+
+    ws.onopen = () => {
+      reconnectDelay.current = 1000; // reset on successful connection
+    };
+
+    ws.onclose = () => {
+      reconnectTimer.current = setTimeout(() => {
+        reconnectDelay.current = Math.min(reconnectDelay.current * 2, 30000);
+        connectWs();
+      }, reconnectDelay.current);
+    };
+
+    ws.onerror = () => {
+      ws.close();
+    };
   }, [qc]);
+
+  useEffect(() => {
+    connectWs();
+    return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      wsRef.current?.close();
+    };
+  }, [connectWs]);
 
   // 종목 검색
   useEffect(() => {
@@ -98,7 +124,13 @@ export default function Trading() {
               {config?.is_running ? "실행 중" : "정지"}
             </span>
             <button
-              onClick={() => toggleMut.mutate(!config?.is_running)}
+              onClick={() => {
+                if (!config?.is_running) {
+                  setShowStartConfirm(true); // show confirm dialog
+                } else {
+                  toggleMut.mutate(false); // stop directly
+                }
+              }}
               disabled={toggleMut.isPending}
               style={{
                 padding: "6px 16px", borderRadius: "8px", border: "none", cursor: "pointer",
@@ -221,7 +253,7 @@ export default function Trading() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
                 <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
-                  {["종목", "수량", "매수가", "손절가", "익절가", "매수일시"].map(h => (
+                  {["종목", "수량", "매수가", "현재가", "수익률", "평가손익", "손절가", "익절가", "매수일시"].map(h => (
                     <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#6b7280", fontWeight: 500 }}>{h}</th>
                   ))}
                 </tr>
@@ -232,6 +264,15 @@ export default function Trading() {
                     <td style={{ padding: "10px 12px", fontWeight: 600 }}>{p.stock_name} <span style={{ color: "#9ca3af" }}>{p.stock_code}</span></td>
                     <td style={{ padding: "10px 12px" }}>{p.quantity.toLocaleString()}주</td>
                     <td style={{ padding: "10px 12px" }}>{p.entry_price.toLocaleString()}원</td>
+                    <td style={{ padding: "10px 12px", color: p.current_price == null ? "#9ca3af" : p.current_price > p.entry_price ? "#dc2626" : "#2563eb" }}>
+                      {p.current_price != null ? `${p.current_price.toLocaleString()}원` : "-"}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: p.return_rate == null ? "#9ca3af" : p.return_rate >= 0 ? "#dc2626" : "#2563eb" }}>
+                      {p.return_rate != null ? `${p.return_rate >= 0 ? "▲" : "▼"} ${p.return_rate.toFixed(2)}%` : "-"}
+                    </td>
+                    <td style={{ padding: "10px 12px", color: p.unrealized_profit_loss == null ? "#9ca3af" : p.unrealized_profit_loss >= 0 ? "#dc2626" : "#2563eb" }}>
+                      {p.unrealized_profit_loss != null ? `${p.unrealized_profit_loss >= 0 ? "+" : ""}${p.unrealized_profit_loss.toLocaleString()}원` : "-"}
+                    </td>
                     <td style={{ padding: "10px 12px", color: "#2563eb" }}>{p.stop_loss_price.toLocaleString()}원</td>
                     <td style={{ padding: "10px 12px", color: "#dc2626" }}>{p.take_profit_price.toLocaleString()}원</td>
                     <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{new Date(p.entered_at).toLocaleString("ko-KR")}</td>
@@ -290,6 +331,27 @@ export default function Trading() {
           )}
         </div>
       </div>
+
+      {showStartConfirm && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%" }}>
+            <h3 style={{ margin: "0 0 12px", fontSize: "1rem", fontWeight: 700 }}>자동매매 시작 확인</h3>
+            <p style={{ margin: "0 0 20px", fontSize: "0.875rem", lineHeight: 1.6, color: "#374151" }}>
+              모의투자 모드로 자동매매를 시작합니다.<br/>실거래 API 미연동 상태이므로 실제 주문은 발생하지 않습니다.
+            </p>
+            <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
+              <button
+                onClick={() => setShowStartConfirm(false)}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "transparent", cursor: "pointer", fontSize: "0.875rem" }}
+              >취소</button>
+              <button
+                onClick={() => { toggleMut.mutate(true); setShowStartConfirm(false); }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "none", background: "#22c55e", color: "#fff", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+              >시작</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

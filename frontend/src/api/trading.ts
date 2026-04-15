@@ -36,6 +36,9 @@ export interface Position {
   stop_loss_price: number;
   take_profit_price: number;
   entered_at: string;
+  current_price?: number;
+  unrealized_profit_loss?: number;
+  return_rate?: number;
 }
 
 export interface TradeHistory {

@@ -17,6 +17,14 @@ logger = logging.getLogger(__name__)
 
 _trading_ws_clients: set = set()
 
+_stock_locks: dict[str, asyncio.Lock] = {}
+
+
+def _get_stock_lock(code: str) -> asyncio.Lock:
+    if code not in _stock_locks:
+        _stock_locks[code] = asyncio.Lock()
+    return _stock_locks[code]
+
 KST = timezone(timedelta(hours=9))
 
 
@@ -143,80 +151,81 @@ async def _process_stock_signal(
     mode: str,
 ) -> None:
     """개별 종목 시그널 처리"""
-    broker = mock_broker if mode == "paper" else real_broker
+    async with _get_stock_lock(stock_code):
+        broker = mock_broker if mode == "paper" else real_broker
 
-    try:
-        prices = await get_daily_close_prices(stock_code, count=config["long_ma"] + 2)
-        if not prices:
-            return
-
-        signal = detect_signal(prices, short=config["short_ma"], long=config["long_ma"])
-        if not signal:
-            return
-
-        # 현재가 조회
-        stock = await naver_client.get_stock_price(stock_code)
-        current_price = stock.current_price
-        if current_price <= 0:
-            return
-
-        # 포지션 확인
-        positions = await asyncio.to_thread(_get_positions_sync, mode)
-        has_position = any(p["stock_code"] == stock_code for p in positions)
-
-        if signal == "BUY" and not has_position:
-            # 잔고의 10%로 매수 수량 계산
-            balance = await broker.get_balance()
-            invest_amount = int(balance * 0.10)
-            quantity = invest_amount // current_price
-            if quantity <= 0:
+        try:
+            prices = await get_daily_close_prices(stock_code, count=config["long_ma"] + 2)
+            if not prices:
                 return
 
-            stop_loss_price = int(current_price * (1 - config["stop_loss_pct"] / 100))
-            take_profit_price = int(current_price * (1 + config["take_profit_pct"] / 100))
+            signal = detect_signal(prices, short=config["short_ma"], long=config["long_ma"])
+            if not signal:
+                return
 
-            result = await broker.buy(
-                stock_code, stock_name, current_price, quantity,
-                stop_loss_price=stop_loss_price,
-                take_profit_price=take_profit_price,
-                reason="golden_cross",
-            )
+            # 현재가 조회
+            stock = await naver_client.get_stock_price(stock_code)
+            current_price = stock.current_price
+            if current_price <= 0:
+                return
 
-            if result["success"]:
-                await _broadcast_signal(TradingSignal(
-                    stock_code=stock_code,
-                    stock_name=stock_name,
-                    signal_type="BUY",
-                    price=current_price,
-                    quantity=quantity,
+            # 포지션 확인
+            positions = await asyncio.to_thread(_get_positions_sync, mode)
+            has_position = any(p["stock_code"] == stock_code for p in positions)
+
+            if signal == "BUY" and not has_position:
+                # 잔고의 10%로 매수 수량 계산
+                balance = await broker.get_balance()
+                invest_amount = int(balance * 0.10)
+                quantity = invest_amount // current_price
+                if quantity <= 0:
+                    return
+
+                stop_loss_price = int(current_price * (1 - config["stop_loss_pct"] / 100))
+                take_profit_price = int(current_price * (1 + config["take_profit_pct"] / 100))
+
+                result = await broker.buy(
+                    stock_code, stock_name, current_price, quantity,
+                    stop_loss_price=stop_loss_price,
+                    take_profit_price=take_profit_price,
                     reason="golden_cross",
-                    mode=mode,
-                    message=result["message"],
-                    timestamp=datetime.now().isoformat(),
-                ))
+                )
 
-        elif signal == "SELL" and has_position:
-            position = next(p for p in positions if p["stock_code"] == stock_code)
-            result = await broker.sell(
-                stock_code, stock_name, current_price, position["quantity"],
-                reason="dead_cross",
-            )
+                if result["success"]:
+                    await _broadcast_signal(TradingSignal(
+                        stock_code=stock_code,
+                        stock_name=stock_name,
+                        signal_type="BUY",
+                        price=current_price,
+                        quantity=quantity,
+                        reason="golden_cross",
+                        mode=mode,
+                        message=result["message"],
+                        timestamp=datetime.now().isoformat(),
+                    ))
 
-            if result["success"]:
-                await _broadcast_signal(TradingSignal(
-                    stock_code=stock_code,
-                    stock_name=stock_name,
-                    signal_type="SELL",
-                    price=current_price,
-                    quantity=position["quantity"],
+            elif signal == "SELL" and has_position:
+                position = next(p for p in positions if p["stock_code"] == stock_code)
+                result = await broker.sell(
+                    stock_code, stock_name, current_price, position["quantity"],
                     reason="dead_cross",
-                    mode=mode,
-                    message=result["message"],
-                    timestamp=datetime.now().isoformat(),
-                ))
+                )
 
-    except Exception as e:
-        logger.warning(f"[TradingEngine] {stock_code} 처리 중 오류: {e}")
+                if result["success"]:
+                    await _broadcast_signal(TradingSignal(
+                        stock_code=stock_code,
+                        stock_name=stock_name,
+                        signal_type="SELL",
+                        price=current_price,
+                        quantity=position["quantity"],
+                        reason="dead_cross",
+                        mode=mode,
+                        message=result["message"],
+                        timestamp=datetime.now().isoformat(),
+                    ))
+
+        except Exception as e:
+            logger.warning(f"[TradingEngine] {stock_code} 처리 중 오류: {e}")
 
 
 async def _check_stop_take(config: dict, mode: str) -> None:
