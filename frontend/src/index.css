@@ -7,6 +7,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+
+  --card-bg: #ffffff;
+  --bg-secondary: #f3f4f6;
+  --tag-bg: #f3f4f6;
+  --input-bg: #ffffff;
+  --text-muted: #6b7280;
+  --border: #e5e7eb;
 }
 
 [data-theme="dark"] {
@@ -20,6 +27,11 @@
   --color-down: #3498db;
   --color-neutral: #888888;
   --shadow: 0 2px 8px rgba(0,0,0,0.4);
+
+  --card-bg: #1e1e1e;
+  --bg-secondary: #2a2a2a;
+  --tag-bg: #2a2a2a;
+  --input-bg: #2a2a2a;
 }
 
 a {

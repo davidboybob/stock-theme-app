@@ -183,11 +183,20 @@ async def _snapshot_themes() -> None:
 
 def start_scheduler() -> None:
     from app.services.trading_engine import run_trading_cycle
+    from app.services.data_snapshot import run_daily_snapshot
     global _scheduler
     _scheduler = AsyncIOScheduler()
     _scheduler.add_job(_check_alerts, "interval", minutes=1, id="alert_monitor")
     _scheduler.add_job(_snapshot_themes, "interval", minutes=10, id="theme_snapshot")
     _scheduler.add_job(run_trading_cycle, "interval", minutes=1, id="trading_cycle")
+    # 매일 16:10 KST (07:10 UTC) 장 마감 후 종가 스냅샷
+    _scheduler.add_job(
+        run_daily_snapshot,
+        "cron",
+        hour=7, minute=10,   # UTC 07:10 = KST 16:10
+        id="daily_snapshot",
+        timezone="UTC",
+    )
     _scheduler.start()
 
 

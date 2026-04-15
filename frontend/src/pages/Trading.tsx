@@ -19,6 +19,13 @@ export default function Trading() {
   const reconnectDelay = useRef(1000);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", handler);
+    return () => window.removeEventListener("resize", handler);
+  }, []);
+
   const { data: config } = useQuery({ queryKey: ["trading-config"], queryFn: getTradingConfig, refetchInterval: 30000 });
   const { data: watchlist = [] } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist });
   const { data: positions = [] } = useQuery({ queryKey: ["positions"], queryFn: getPositions, refetchInterval: 30000 });
@@ -105,13 +112,13 @@ export default function Trading() {
   const paperPositions = positions.filter(p => p.mode === "paper");
 
   return (
-    <div style={{ padding: "24px", maxWidth: "1200px", margin: "0 auto" }}>
+    <div style={{ padding: isMobile ? "16px" : "24px", maxWidth: "1200px", margin: "0 auto" }}>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "24px" }}>자동매매</h1>
 
       {/* 상단 제어 패널 */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
         {/* 엔진 상태 */}
-        <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px" }}>
           <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>엔진 상태</h2>
           <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "12px" }}>
             <span style={{
@@ -140,26 +147,26 @@ export default function Trading() {
               {config?.is_running ? "정지" : "시작"}
             </button>
           </div>
-          <div style={{ fontSize: "0.875rem", color: "var(--text-muted, #6b7280)" }}>
+          <div style={{ fontSize: "0.875rem", color: "var(--text-muted)" }}>
             모의투자는 24시간 / 실거래는 장중(09:00~15:30)만 실행
           </div>
         </div>
 
         {/* 모의투자 잔고 */}
-        <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px" }}>
           <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>모의투자 계좌</h2>
           <div style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "4px" }}>
             {paperBalance.toLocaleString()}원
           </div>
           <div style={{ fontSize: "0.875rem", color: returnRate >= 0 ? "#dc2626" : "#2563eb", marginBottom: "12px" }}>
             {returnRate >= 0 ? "▲" : "▼"} {Math.abs(returnRate).toFixed(2)}%
-            <span style={{ color: "var(--text-muted, #6b7280)", marginLeft: "8px" }}>
+            <span style={{ color: "var(--text-muted)", marginLeft: "8px" }}>
               (초기: {paperInitial.toLocaleString()}원)
             </span>
           </div>
           <button
             onClick={() => resetBalanceMut.mutate()}
-            style={{ fontSize: "0.75rem", padding: "4px 10px", borderRadius: "6px", border: "1px solid #d1d5db", background: "transparent", cursor: "pointer" }}
+            style={{ fontSize: "0.75rem", padding: "4px 10px", borderRadius: "6px", border: "1px solid var(--border)", background: "transparent", cursor: "pointer" }}
           >
             잔고 초기화
           </button>
@@ -167,9 +174,9 @@ export default function Trading() {
       </div>
 
       {/* 전략 설정 */}
-      <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
+      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>전략 설정 (골든/데드크로스)</h2>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "12px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: "12px" }}>
           {[
             { label: "단기 이동평균 (일)", key: "short_ma", value: config?.short_ma },
             { label: "장기 이동평균 (일)", key: "long_ma", value: config?.long_ma },
@@ -177,12 +184,12 @@ export default function Trading() {
             { label: "익절 (%)", key: "take_profit_pct", value: config?.take_profit_pct },
           ].map(({ label, key, value }) => (
             <div key={key}>
-              <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted, #6b7280)", marginBottom: "4px" }}>{label}</label>
+              <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>{label}</label>
               <input
                 type="number"
                 defaultValue={value}
                 onChange={(e) => setConfigForm(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
-                style={{ width: "100%", padding: "8px", border: "1px solid #d1d5db", borderRadius: "6px", fontSize: "0.875rem", background: "var(--input-bg, #fff)", boxSizing: "border-box" }}
+                style={{ width: "100%", padding: "8px", border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.875rem", background: "var(--input-bg)", boxSizing: "border-box" }}
               />
             </div>
           ))}
@@ -197,7 +204,7 @@ export default function Trading() {
       </div>
 
       {/* 감시 종목 */}
-      <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
+      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>감시 종목</h2>
         {/* 검색 추가 */}
         <div style={{ position: "relative", marginBottom: "16px" }}>
@@ -206,17 +213,17 @@ export default function Trading() {
             placeholder="종목명 또는 코드 검색..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            style={{ width: "280px", padding: "8px 12px", border: "1px solid #d1d5db", borderRadius: "8px", fontSize: "0.875rem" }}
+            style={{ width: "280px", padding: "8px 12px", border: "1px solid var(--border)", borderRadius: "8px", fontSize: "0.875rem" }}
           />
           {searchResults.length > 0 && (
-            <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 10, background: "#fff", border: "1px solid #e5e7eb", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,.1)", minWidth: "280px" }}>
+            <div style={{ position: "absolute", top: "100%", left: 0, zIndex: 10, background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "8px", boxShadow: "0 4px 12px rgba(0,0,0,.1)", minWidth: "280px" }}>
               {searchResults.map((r) => (
                 <button
                   key={r.code}
                   onClick={() => addWatchMut.mutate({ stock_code: r.code, stock_name: r.name })}
                   style={{ display: "block", width: "100%", textAlign: "left", padding: "10px 14px", border: "none", background: "transparent", cursor: "pointer", fontSize: "0.875rem" }}
                 >
-                  {r.name} <span style={{ color: "#9ca3af" }}>{r.code}</span>
+                  {r.name} <span style={{ color: "var(--text-muted)" }}>{r.code}</span>
                 </button>
               ))}
             </div>
@@ -224,16 +231,16 @@ export default function Trading() {
         </div>
         {/* 감시 목록 */}
         {watchlist.length === 0 ? (
-          <p style={{ color: "var(--text-muted, #9ca3af)", fontSize: "0.875rem" }}>감시 종목이 없습니다. 종목을 검색하여 추가하세요.</p>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>감시 종목이 없습니다. 종목을 검색하여 추가하세요.</p>
         ) : (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
             {watchlist.map((item: WatchlistItem) => (
-              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--tag-bg, #f3f4f6)", borderRadius: "999px", fontSize: "0.875rem" }}>
+              <div key={item.id} style={{ display: "flex", alignItems: "center", gap: "6px", padding: "6px 12px", background: "var(--tag-bg)", borderRadius: "999px", fontSize: "0.875rem" }}>
                 <span>{item.stock_name}</span>
-                <span style={{ color: "#9ca3af" }}>{item.stock_code}</span>
+                <span style={{ color: "var(--text-muted)" }}>{item.stock_code}</span>
                 <button
                   onClick={() => removeWatchMut.mutate(item.id)}
-                  style={{ border: "none", background: "transparent", cursor: "pointer", color: "#9ca3af", padding: "0", lineHeight: 1 }}
+                  style={{ border: "none", background: "transparent", cursor: "pointer", color: "var(--text-muted)", padding: "0", lineHeight: 1 }}
                 >×</button>
               </div>
             ))}
@@ -242,40 +249,40 @@ export default function Trading() {
       </div>
 
       {/* 현재 포지션 */}
-      <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
+      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
         <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>
-          현재 포지션 (모의) <span style={{ color: "#9ca3af", fontWeight: 400, fontSize: "0.875rem" }}>{paperPositions.length}종목</span>
+          현재 포지션 (모의) <span style={{ color: "var(--text-muted)", fontWeight: 400, fontSize: "0.875rem" }}>{paperPositions.length}종목</span>
         </h2>
         {paperPositions.length === 0 ? (
-          <p style={{ color: "var(--text-muted, #9ca3af)", fontSize: "0.875rem" }}>보유 포지션이 없습니다.</p>
+          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>보유 포지션이 없습니다.</p>
         ) : (
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
               <thead>
-                <tr style={{ borderBottom: "1px solid #e5e7eb" }}>
+                <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   {["종목", "수량", "매수가", "현재가", "수익률", "평가손익", "손절가", "익절가", "매수일시"].map(h => (
-                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "#6b7280", fontWeight: 500 }}>{h}</th>
+                    <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 500 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {paperPositions.map((p: Position) => (
-                  <tr key={p.id} style={{ borderBottom: "1px solid #f3f4f6" }}>
-                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{p.stock_name} <span style={{ color: "#9ca3af" }}>{p.stock_code}</span></td>
+                  <tr key={p.id} style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td style={{ padding: "10px 12px", fontWeight: 600 }}>{p.stock_name} <span style={{ color: "var(--text-muted)" }}>{p.stock_code}</span></td>
                     <td style={{ padding: "10px 12px" }}>{p.quantity.toLocaleString()}주</td>
                     <td style={{ padding: "10px 12px" }}>{p.entry_price.toLocaleString()}원</td>
-                    <td style={{ padding: "10px 12px", color: p.current_price == null ? "#9ca3af" : p.current_price > p.entry_price ? "#dc2626" : "#2563eb" }}>
+                    <td style={{ padding: "10px 12px", color: p.current_price == null ? "var(--text-muted)" : p.current_price > p.entry_price ? "#dc2626" : "#2563eb" }}>
                       {p.current_price != null ? `${p.current_price.toLocaleString()}원` : "-"}
                     </td>
-                    <td style={{ padding: "10px 12px", color: p.return_rate == null ? "#9ca3af" : p.return_rate >= 0 ? "#dc2626" : "#2563eb" }}>
+                    <td style={{ padding: "10px 12px", color: p.return_rate == null ? "var(--text-muted)" : p.return_rate >= 0 ? "#dc2626" : "#2563eb" }}>
                       {p.return_rate != null ? `${p.return_rate >= 0 ? "▲" : "▼"} ${p.return_rate.toFixed(2)}%` : "-"}
                     </td>
-                    <td style={{ padding: "10px 12px", color: p.unrealized_profit_loss == null ? "#9ca3af" : p.unrealized_profit_loss >= 0 ? "#dc2626" : "#2563eb" }}>
+                    <td style={{ padding: "10px 12px", color: p.unrealized_profit_loss == null ? "var(--text-muted)" : p.unrealized_profit_loss >= 0 ? "#dc2626" : "#2563eb" }}>
                       {p.unrealized_profit_loss != null ? `${p.unrealized_profit_loss >= 0 ? "+" : ""}${p.unrealized_profit_loss.toLocaleString()}원` : "-"}
                     </td>
                     <td style={{ padding: "10px 12px", color: "#2563eb" }}>{p.stop_loss_price.toLocaleString()}원</td>
                     <td style={{ padding: "10px 12px", color: "#dc2626" }}>{p.take_profit_price.toLocaleString()}원</td>
-                    <td style={{ padding: "10px 12px", color: "#9ca3af" }}>{new Date(p.entered_at).toLocaleString("ko-KR")}</td>
+                    <td style={{ padding: "10px 12px", color: "var(--text-muted)" }}>{new Date(p.entered_at).toLocaleString("ko-KR")}</td>
                   </tr>
                 ))}
               </tbody>
@@ -284,22 +291,22 @@ export default function Trading() {
         )}
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
         {/* 거래 내역 */}
-        <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px" }}>
           <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>거래 내역</h2>
           {history.length === 0 ? (
-            <p style={{ color: "#9ca3af", fontSize: "0.875rem" }}>거래 내역이 없습니다.</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>거래 내역이 없습니다.</p>
           ) : (
             <div style={{ maxHeight: "300px", overflowY: "auto" }}>
               {(history as TradeHistory[]).slice(0, 30).map((h: TradeHistory) => (
-                <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid #f3f4f6", fontSize: "0.8125rem" }}>
+                <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)", fontSize: "0.8125rem" }}>
                   <div>
                     <span style={{ fontWeight: 600, color: h.signal_type === "BUY" ? "#dc2626" : "#2563eb", marginRight: "6px" }}>
                       {h.signal_type === "BUY" ? "매수" : "매도"}
                     </span>
                     {h.stock_name}
-                    <span style={{ color: "#9ca3af", marginLeft: "4px" }}>{h.reason}</span>
+                    <span style={{ color: "var(--text-muted)", marginLeft: "4px" }}>{h.reason}</span>
                   </div>
                   <div style={{ textAlign: "right" }}>
                     <div>{h.price.toLocaleString()}원 × {h.quantity}</div>
@@ -316,14 +323,14 @@ export default function Trading() {
         </div>
 
         {/* 실시간 시그널 로그 */}
-        <div style={{ background: "var(--card-bg, #fff)", border: "1px solid var(--border, #e5e7eb)", borderRadius: "12px", padding: "20px" }}>
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px" }}>
           <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>실시간 시그널</h2>
           {signalLog.length === 0 ? (
-            <p style={{ color: "#9ca3af", fontSize: "0.875rem" }}>대기 중...</p>
+            <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>대기 중...</p>
           ) : (
             <div style={{ maxHeight: "300px", overflowY: "auto", fontFamily: "monospace", fontSize: "0.8125rem" }}>
               {signalLog.map((s, i) => (
-                <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid #f3f4f6", color: s.signal_type === "BUY" ? "#dc2626" : "#2563eb" }}>
+                <div key={i} style={{ padding: "4px 0", borderBottom: "1px solid var(--border)", color: s.signal_type === "BUY" ? "#dc2626" : "#2563eb" }}>
                   [{new Date(s.timestamp).toLocaleTimeString("ko-KR")}] {s.signal_type} {s.stock_name} | {s.message}
                 </div>
               ))}
@@ -334,7 +341,7 @@ export default function Trading() {
 
       {showStartConfirm && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", zIndex: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <div style={{ background: "#fff", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%" }}>
+          <div style={{ background: "var(--card-bg)", borderRadius: 12, padding: 24, maxWidth: 400, width: "90%" }}>
             <h3 style={{ margin: "0 0 12px", fontSize: "1rem", fontWeight: 700 }}>자동매매 시작 확인</h3>
             <p style={{ margin: "0 0 20px", fontSize: "0.875rem", lineHeight: 1.6, color: "#374151" }}>
               모의투자 모드로 자동매매를 시작합니다.<br/>실거래 API 미연동 상태이므로 실제 주문은 발생하지 않습니다.
@@ -342,7 +349,7 @@ export default function Trading() {
             <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
               <button
                 onClick={() => setShowStartConfirm(false)}
-                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #d1d5db", background: "transparent", cursor: "pointer", fontSize: "0.875rem" }}
+                style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid var(--border)", background: "transparent", cursor: "pointer", fontSize: "0.875rem" }}
               >취소</button>
               <button
                 onClick={() => { toggleMut.mutate(true); setShowStartConfirm(false); }}
