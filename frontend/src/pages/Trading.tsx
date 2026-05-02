@@ -3,8 +3,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   getTradingConfig, updateTradingConfig, toggleEngine, resetPaperBalance,
   getWatchlist, addToWatchlist, removeFromWatchlist,
-  getPositions, getTradeHistory,
+  getPositions, getTradeHistory, runBacktest,
   TradingConfig, TradingSignal, Position, TradeHistory, WatchlistItem,
+  BacktestResult,
 } from "../api/trading";
 import { searchStocks } from "../api/client";
 
@@ -18,6 +19,9 @@ export default function Trading() {
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectDelay = useRef(1000);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [backtestLoading, setBacktestLoading] = useState(false);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
   useEffect(() => {
@@ -175,25 +179,76 @@ export default function Trading() {
 
       {/* 전략 설정 */}
       <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
-        <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>전략 설정 (골든/데드크로스)</h2>
-        <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(4, 1fr)", gap: "12px" }}>
-          {[
-            { label: "단기 이동평균 (일)", key: "short_ma", value: config?.short_ma },
-            { label: "장기 이동평균 (일)", key: "long_ma", value: config?.long_ma },
-            { label: "손절 (%)", key: "stop_loss_pct", value: config?.stop_loss_pct },
-            { label: "익절 (%)", key: "take_profit_pct", value: config?.take_profit_pct },
-          ].map(({ label, key, value }) => (
-            <div key={key}>
-              <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>{label}</label>
-              <input
-                type="number"
-                defaultValue={value}
-                onChange={(e) => setConfigForm(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
-                style={{ width: "100%", padding: "8px", border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.875rem", background: "var(--input-bg)", boxSizing: "border-box" }}
-              />
-            </div>
-          ))}
+        <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "16px" }}>전략 설정</h2>
+
+        {/* 전략 선택 탭 */}
+        <div style={{ display: "flex", gap: "8px", marginBottom: "16px" }}>
+          {([
+            { value: "ma_cross", label: "이동평균 크로스" },
+            { value: "rsi", label: "RSI" },
+            { value: "macd", label: "MACD" },
+          ] as const).map(({ value, label }) => {
+            const active = (configForm.strategy ?? config?.strategy ?? "ma_cross") === value;
+            return (
+              <button
+                key={value}
+                onClick={() => setConfigForm(prev => ({ ...prev, strategy: value }))}
+                style={{
+                  padding: "6px 14px", borderRadius: "8px", border: "1px solid var(--border)",
+                  cursor: "pointer", fontSize: "0.875rem", fontWeight: active ? 700 : 400,
+                  background: active ? "#3b82f6" : "transparent",
+                  color: active ? "#fff" : "inherit",
+                }}
+              >{label}</button>
+            );
+          })}
         </div>
+
+        {/* 전략별 파라미터 */}
+        {(() => {
+          const strategy = configForm.strategy ?? config?.strategy ?? "ma_cross";
+          const inputStyle = { width: "100%", padding: "8px", border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.875rem", background: "var(--input-bg)", boxSizing: "border-box" as const };
+          const fields: { label: string; key: keyof TradingConfig; defaultVal: number | undefined }[] =
+            strategy === "rsi"
+              ? [
+                  { label: "RSI 기간 (일)", key: "rsi_period", defaultVal: config?.rsi_period },
+                  { label: "과매도 기준 (매수)", key: "rsi_oversold", defaultVal: config?.rsi_oversold },
+                  { label: "과매수 기준 (매도)", key: "rsi_overbought", defaultVal: config?.rsi_overbought },
+                  { label: "손절 (%)", key: "stop_loss_pct", defaultVal: config?.stop_loss_pct },
+                  { label: "익절 (%)", key: "take_profit_pct", defaultVal: config?.take_profit_pct },
+                ]
+              : strategy === "macd"
+              ? [
+                  { label: "단기 EMA (일)", key: "macd_fast", defaultVal: config?.macd_fast },
+                  { label: "장기 EMA (일)", key: "macd_slow", defaultVal: config?.macd_slow },
+                  { label: "시그널 (일)", key: "macd_signal", defaultVal: config?.macd_signal },
+                  { label: "손절 (%)", key: "stop_loss_pct", defaultVal: config?.stop_loss_pct },
+                  { label: "익절 (%)", key: "take_profit_pct", defaultVal: config?.take_profit_pct },
+                ]
+              : [
+                  { label: "단기 이동평균 (일)", key: "short_ma", defaultVal: config?.short_ma },
+                  { label: "장기 이동평균 (일)", key: "long_ma", defaultVal: config?.long_ma },
+                  { label: "손절 (%)", key: "stop_loss_pct", defaultVal: config?.stop_loss_pct },
+                  { label: "익절 (%)", key: "take_profit_pct", defaultVal: config?.take_profit_pct },
+                ];
+          return (
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(5, 1fr)", gap: "12px" }}>
+              {fields.map(({ label, key, defaultVal }) => (
+                <div key={key}>
+                  <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>{label}</label>
+                  <input
+                    type="number"
+                    key={`${key}-${config?.strategy}`}
+                    defaultValue={defaultVal}
+                    onChange={(e) => setConfigForm(prev => ({ ...prev, [key]: parseFloat(e.target.value) }))}
+                    style={inputStyle}
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        })()}
+
         <button
           onClick={() => updateConfigMut.mutate(configForm)}
           disabled={updateConfigMut.isPending || Object.keys(configForm).length === 0}
@@ -337,6 +392,98 @@ export default function Trading() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* 백테스트 */}
+      <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginTop: "24px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, margin: 0 }}>백테스트</h2>
+          <button
+            onClick={async () => {
+              if (watchlist.length === 0) return alert("감시 종목을 먼저 추가하세요.");
+              setBacktestLoading(true);
+              setBacktestResult(null);
+              try {
+                const strategy = config?.strategy ?? "ma_cross";
+                const result = await runBacktest({
+                  stock_codes: watchlist.map((w: WatchlistItem) => w.stock_code),
+                  stock_names: watchlist.map((w: WatchlistItem) => w.stock_name),
+                  strategy,
+                  short_ma: config?.short_ma ?? 5,
+                  long_ma: config?.long_ma ?? 20,
+                  stop_loss_pct: config?.stop_loss_pct ?? 5,
+                  take_profit_pct: config?.take_profit_pct ?? 10,
+                  initial_capital: config?.paper_initial_capital ?? 10_000_000,
+                  count: 180,
+                  rsi_period: config?.rsi_period ?? 14,
+                  rsi_oversold: config?.rsi_oversold ?? 30,
+                  rsi_overbought: config?.rsi_overbought ?? 70,
+                  macd_fast: config?.macd_fast ?? 12,
+                  macd_slow: config?.macd_slow ?? 26,
+                  macd_signal_period: config?.macd_signal ?? 9,
+                });
+                setBacktestResult(result);
+              } catch (e) {
+                alert("백테스트 실패: " + (e instanceof Error ? e.message : "알 수 없는 오류"));
+              } finally {
+                setBacktestLoading(false);
+              }
+            }}
+            disabled={backtestLoading}
+            style={{ padding: "6px 16px", background: "#8b5cf6", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 600, fontSize: "0.875rem" }}
+          >
+            {backtestLoading ? "분석 중..." : "감시 종목 백테스트 (180일)"}
+          </button>
+        </div>
+
+        {backtestResult && (
+          <>
+            {/* 합산 지표 */}
+            <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr 1fr" : "repeat(3, 1fr)", gap: "12px", marginBottom: "16px" }}>
+              {[
+                { label: "전체 수익률", value: `${backtestResult.total_return_rate >= 0 ? "+" : ""}${backtestResult.total_return_rate.toFixed(2)}%`, color: backtestResult.total_return_rate >= 0 ? "#dc2626" : "#2563eb" },
+                { label: "평균 승률", value: `${backtestResult.avg_win_rate.toFixed(1)}%`, color: "inherit" },
+                { label: "평균 최대낙폭", value: `${backtestResult.avg_max_drawdown.toFixed(2)}%`, color: "#dc2626" },
+              ].map(({ label, value, color }) => (
+                <div key={label} style={{ background: "var(--tag-bg)", borderRadius: "8px", padding: "12px 16px" }}>
+                  <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>{label}</div>
+                  <div style={{ fontSize: "1.25rem", fontWeight: 700, color }}>{value}</div>
+                </div>
+              ))}
+            </div>
+
+            {/* 종목별 결과 */}
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    {["종목", "최종잔고", "수익률", "승률", "총거래", "최대낙폭"].map(h => (
+                      <th key={h} style={{ padding: "8px 12px", textAlign: "left", color: "var(--text-muted)", fontWeight: 500 }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {backtestResult.results.map((r) => (
+                    <tr key={r.stock_code} style={{ borderBottom: "1px solid var(--border)" }}>
+                      <td style={{ padding: "10px 12px", fontWeight: 600 }}>{r.stock_name} <span style={{ color: "var(--text-muted)" }}>{r.stock_code}</span></td>
+                      <td style={{ padding: "10px 12px" }}>{r.final_balance.toLocaleString()}원</td>
+                      <td style={{ padding: "10px 12px", color: r.return_rate >= 0 ? "#dc2626" : "#2563eb", fontWeight: 600 }}>
+                        {r.return_rate >= 0 ? "+" : ""}{r.return_rate.toFixed(2)}%
+                      </td>
+                      <td style={{ padding: "10px 12px" }}>{r.win_rate.toFixed(1)}%</td>
+                      <td style={{ padding: "10px 12px" }}>{r.total_trades}건</td>
+                      <td style={{ padding: "10px 12px", color: "#dc2626" }}>{r.max_drawdown.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+
+        {!backtestResult && !backtestLoading && (
+          <p style={{ color: "var(--text-muted)", fontSize: "0.875rem" }}>감시 종목을 추가하고 버튼을 눌러 현재 전략을 백테스트하세요.</p>
+        )}
       </div>
 
       {showStartConfirm && (

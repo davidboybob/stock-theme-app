@@ -11,6 +11,7 @@ from app.models.trading import (
     WatchlistItem, WatchlistAdd,
     TradingConfig, TradingConfigUpdate,
     Position, TradeHistory,
+    BacktestRequest, BacktestResult,
 )
 from app.services.trading_engine import (
     get_config, update_config, toggle_engine,
@@ -110,17 +111,27 @@ def _db_get_positions() -> list:
 @router.get("/trading/positions", response_model=List[Position])
 async def get_positions():
     positions = await asyncio.to_thread(_db_get_positions)
-    # Enrich with current price
+    if not positions:
+        return []
+
+    # 병렬로 현재가 조회 (N+1 → asyncio.gather)
+    price_tasks = [naver_client.get_stock_price(p["stock_code"]) for p in positions]
+    price_results = await asyncio.gather(*price_tasks, return_exceptions=True)
+
     enriched = []
-    for p in positions:
-        try:
-            stock = await naver_client.get_stock_price(p["stock_code"])
-            current_price = stock.current_price
-            unrealized_pnl = (current_price - p["entry_price"]) * p["quantity"]
-            return_rate = ((current_price - p["entry_price"]) / p["entry_price"] * 100) if p["entry_price"] > 0 else 0.0
-            enriched.append({**p, "current_price": current_price, "unrealized_profit_loss": unrealized_pnl, "return_rate": round(return_rate, 2)})
-        except Exception:
+    for p, result in zip(positions, price_results):
+        if isinstance(result, Exception):
             enriched.append(p)
+            continue
+        current_price = result.current_price
+        unrealized_pnl = (current_price - p["entry_price"]) * p["quantity"]
+        return_rate = ((current_price - p["entry_price"]) / p["entry_price"] * 100) if p["entry_price"] > 0 else 0.0
+        enriched.append({
+            **p,
+            "current_price": current_price,
+            "unrealized_profit_loss": unrealized_pnl,
+            "return_rate": round(return_rate, 2),
+        })
     return enriched
 
 
@@ -135,6 +146,18 @@ def _db_get_history(limit: int = 100) -> list:
 @router.get("/trading/history", response_model=List[TradeHistory])
 async def get_trade_history(limit: int = 100):
     return await asyncio.to_thread(_db_get_history, limit)
+
+
+# ─── Backtest ─────────────────────────────────────────────────────────────────
+
+@router.post("/trading/backtest", response_model=BacktestResult)
+async def run_backtest(body: BacktestRequest):
+    from app.services.backtest import run_backtest as _run_backtest
+    if not body.stock_codes:
+        raise HTTPException(400, "종목 코드를 1개 이상 입력해주세요")
+    if len(body.stock_codes) > 10:
+        raise HTTPException(400, "한 번에 최대 10개 종목까지 백테스트 가능합니다")
+    return await _run_backtest(body)
 
 
 # ─── WebSocket ────────────────────────────────────────────────────────────────

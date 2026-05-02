@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone, timedelta
 from statistics import mean
-from typing import Optional
+from typing import Optional, List
 import logging
 
 from app.db import get_supabase
@@ -90,6 +90,13 @@ def _ensure_config_sync() -> dict:
             "paper_initial_capital": 10_000_000,
             "paper_balance": 10_000_000,
             "is_running": False,
+            "strategy": "ma_cross",
+            "rsi_period": 14,
+            "rsi_oversold": 30.0,
+            "rsi_overbought": 70.0,
+            "macd_fast": 12,
+            "macd_slow": 26,
+            "macd_signal": 9,
         }
         sb.table("trading_config").insert(default).execute()
         return default
@@ -114,34 +121,125 @@ def calc_ma(prices: list[int], period: int) -> float:
     return mean(prices[:period])
 
 
-def detect_signal(prices: list[int], short: int = 5, long: int = 20) -> Optional[str]:
-    """골든/데드크로스 감지.
+def _calc_ema(values: List[float], period: int) -> List[float]:
+    """EMA 계산 (오래된→최신 순 입력)"""
+    if len(values) < period:
+        return []
+    k = 2 / (period + 1)
+    ema = [mean(values[:period])]
+    for v in values[period:]:
+        ema.append(v * k + ema[-1] * (1 - k))
+    return ema
 
-    Args:
-        prices: 최신→과거 순 종가 리스트 (최소 long+1개 필요)
-    Returns:
-        "BUY" (골든크로스), "SELL" (데드크로스), None (시그널 없음)
-    """
+
+def calc_rsi(prices: list[int], period: int = 14) -> float:
+    """RSI 계산. prices: 최신→과거 순 (최소 period+1개 필요)"""
+    if len(prices) < period + 1:
+        return 50.0
+    # 오래된→최신 순 변환 후 변화량 계산
+    ordered = list(reversed(prices[:period + 1]))
+    gains, losses = [], []
+    for i in range(1, len(ordered)):
+        change = ordered[i] - ordered[i - 1]
+        gains.append(max(0.0, float(change)))
+        losses.append(max(0.0, float(-change)))
+    avg_gain = mean(gains) if gains else 0.0
+    avg_loss = mean(losses) if losses else 0.0
+    if avg_loss == 0:
+        return 100.0
+    rs = avg_gain / avg_loss
+    return round(100 - (100 / (1 + rs)), 2)
+
+
+def calc_macd(
+    prices: list[int],
+    fast: int = 12,
+    slow: int = 26,
+    signal_period: int = 9,
+) -> tuple[float, float]:
+    """MACD 계산. Returns (macd_line, signal_line). prices: 최신→과거 순"""
+    min_required = slow + signal_period
+    if len(prices) < min_required:
+        return 0.0, 0.0
+    ordered = [float(p) for p in reversed(prices)]
+    fast_ema = _calc_ema(ordered, fast)
+    slow_ema = _calc_ema(ordered, slow)
+    if not fast_ema or not slow_ema:
+        return 0.0, 0.0
+    # fast_ema[i + offset] aligns with slow_ema[i] (both start from slow-1 index)
+    offset = slow - fast
+    macd_line = [fast_ema[i + offset] - slow_ema[i] for i in range(len(slow_ema))]
+    if len(macd_line) < signal_period:
+        return 0.0, 0.0
+    sig_ema = _calc_ema(macd_line, signal_period)
+    if not sig_ema:
+        return 0.0, 0.0
+    return macd_line[-1], sig_ema[-1]
+
+
+def _detect_ma_cross(prices: list[int], short: int, long: int) -> Optional[str]:
     if len(prices) < long + 1:
         return None
-
-    # 오늘 MA
     ma_short_today = calc_ma(prices, short)
     ma_long_today = calc_ma(prices, long)
-
-    # 어제 MA (인덱스 1부터)
     ma_short_prev = calc_ma(prices[1:], short)
     ma_long_prev = calc_ma(prices[1:], long)
-
-    # 골든크로스: 어제까지 단기 <= 장기, 오늘 단기 > 장기
     if ma_short_prev <= ma_long_prev and ma_short_today > ma_long_today:
         return "BUY"
-
-    # 데드크로스: 어제까지 단기 >= 장기, 오늘 단기 < 장기
     if ma_short_prev >= ma_long_prev and ma_short_today < ma_long_today:
         return "SELL"
-
     return None
+
+
+def _detect_rsi_signal(
+    prices: list[int],
+    period: int = 14,
+    oversold: float = 30.0,
+    overbought: float = 70.0,
+) -> Optional[str]:
+    rsi = calc_rsi(prices, period)
+    if rsi <= oversold:
+        return "BUY"
+    if rsi >= overbought:
+        return "SELL"
+    return None
+
+
+def _detect_macd_signal(
+    prices: list[int],
+    fast: int = 12,
+    slow: int = 26,
+    signal_period: int = 9,
+) -> Optional[str]:
+    if len(prices) < slow + signal_period + 1:
+        return None
+    macd_today, sig_today = calc_macd(prices, fast, slow, signal_period)
+    macd_prev, sig_prev = calc_macd(prices[1:], fast, slow, signal_period)
+    if macd_prev <= sig_prev and macd_today > sig_today:
+        return "BUY"
+    if macd_prev >= sig_prev and macd_today < sig_today:
+        return "SELL"
+    return None
+
+
+def detect_signal(
+    prices: list[int],
+    short: int = 5,
+    long: int = 20,
+    strategy: str = "ma_cross",
+    rsi_period: int = 14,
+    rsi_oversold: float = 30.0,
+    rsi_overbought: float = 70.0,
+    macd_fast: int = 12,
+    macd_slow: int = 26,
+    macd_signal: int = 9,
+) -> Optional[str]:
+    """전략에 따른 매매 시그널 감지. prices: 최신→과거 순"""
+    if strategy == "rsi":
+        return _detect_rsi_signal(prices, rsi_period, rsi_oversold, rsi_overbought)
+    if strategy == "macd":
+        return _detect_macd_signal(prices, macd_fast, macd_slow, macd_signal)
+    return _detect_ma_cross(prices, short, long)
 
 
 async def _process_stock_signal(
@@ -155,11 +253,30 @@ async def _process_stock_signal(
         broker = mock_broker if mode == "paper" else real_broker
 
         try:
-            prices = await get_daily_close_prices(stock_code, count=config["long_ma"] + 2)
+            # 전략별 최소 필요 데이터 수 계산
+            strategy = config.get("strategy", "ma_cross")
+            if strategy == "macd":
+                needed = config.get("macd_slow", 26) + config.get("macd_signal", 9) + 2
+            elif strategy == "rsi":
+                needed = config.get("rsi_period", 14) + 2
+            else:
+                needed = config.get("long_ma", 20) + 2
+            prices = await get_daily_close_prices(stock_code, count=needed)
             if not prices:
                 return
 
-            signal = detect_signal(prices, short=config["short_ma"], long=config["long_ma"])
+            signal = detect_signal(
+                prices,
+                short=config.get("short_ma", 5),
+                long=config.get("long_ma", 20),
+                strategy=config.get("strategy", "ma_cross"),
+                rsi_period=config.get("rsi_period", 14),
+                rsi_oversold=config.get("rsi_oversold", 30.0),
+                rsi_overbought=config.get("rsi_overbought", 70.0),
+                macd_fast=config.get("macd_fast", 12),
+                macd_slow=config.get("macd_slow", 26),
+                macd_signal=config.get("macd_signal", 9),
+            )
             if not signal:
                 return
 

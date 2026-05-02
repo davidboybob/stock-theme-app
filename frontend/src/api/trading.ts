@@ -15,6 +15,13 @@ export interface TradingConfig {
   paper_initial_capital: number;
   paper_balance: number;
   is_running: boolean;
+  strategy: "ma_cross" | "rsi" | "macd";
+  rsi_period: number;
+  rsi_oversold: number;
+  rsi_overbought: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal: number;
 }
 
 export interface WatchlistItem {
@@ -94,3 +101,60 @@ export const getPositions = () =>
 
 export const getTradeHistory = () =>
   api.get<TradeHistory[]>("/trading/history").then((r) => r.data);
+
+// ─── Backtest ─────────────────────────────────────────────────────────────────
+
+export interface BacktestRequest {
+  stock_codes: string[];
+  stock_names?: string[];
+  strategy: "ma_cross" | "rsi" | "macd";
+  short_ma: number;
+  long_ma: number;
+  stop_loss_pct: number;
+  take_profit_pct: number;
+  initial_capital: number;
+  count: number;
+  rsi_period: number;
+  rsi_oversold: number;
+  rsi_overbought: number;
+  macd_fast: number;
+  macd_slow: number;
+  macd_signal_period: number;
+}
+
+export interface BacktestTrade {
+  index: number;
+  signal_type: "BUY" | "SELL";
+  price: number;
+  quantity: number;
+  reason: string;
+  profit_loss?: number;
+  balance_after: number;
+}
+
+export interface BacktestStockResult {
+  stock_code: string;
+  stock_name: string;
+  strategy: string;
+  initial_capital: number;
+  final_balance: number;
+  return_rate: number;
+  win_rate: number;
+  total_trades: number;
+  winning_trades: number;
+  losing_trades: number;
+  max_drawdown: number;
+  trades: BacktestTrade[];
+}
+
+export interface BacktestResult {
+  strategy: string;
+  initial_capital: number;
+  results: BacktestStockResult[];
+  total_return_rate: number;
+  avg_win_rate: number;
+  avg_max_drawdown: number;
+}
+
+export const runBacktest = (data: BacktestRequest) =>
+  api.post<BacktestResult>("/trading/backtest", data).then((r) => r.data);
