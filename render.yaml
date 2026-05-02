@@ -7,10 +7,10 @@ services:
     startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: "3.11.0"
+      - key: SUPABASE_URL
+        sync: false   # Render 대시보드 → Environment에서 직접 입력
+      - key: SUPABASE_KEY
+        sync: false   # service_role 키 입력
       - key: ALLOWED_ORIGINS
-        sync: false   # Vercel 배포 후 대시보드에서 직접 입력
-    disk:
-      name: db-data
-      mountPath: /opt/render/project/src/app/data
-      sizeGB: 1
+        sync: false   # Vercel 배포 URL (e.g. https://your-app.vercel.app)

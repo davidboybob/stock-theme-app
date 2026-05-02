@@ -5,8 +5,10 @@ services:
     build: ./backend
     container_name: stock-backend
     restart: unless-stopped
-    volumes:
-      - db_data:/app/app/data
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env
     environment:
       - PYTHONUNBUFFERED=1
     healthcheck:
@@ -16,7 +18,10 @@ services:
       retries: 3
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        - VITE_API_URL=  # nginx가 /api/ 프록시 처리 — 빈 값으로 상대 경로 사용
     container_name: stock-frontend
     restart: unless-stopped
     ports:
@@ -24,6 +29,3 @@ services:
     depends_on:
       backend:
         condition: service_healthy
-
-volumes:
-  db_data:
