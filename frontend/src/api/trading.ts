@@ -22,6 +22,7 @@ export interface TradingConfig {
   macd_fast: number;
   macd_slow: number;
   macd_signal: number;
+  daily_loss_limit_pct: number;
 }
 
 export interface WatchlistItem {

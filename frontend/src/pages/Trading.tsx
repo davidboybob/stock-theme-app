@@ -1,6 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
+  LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, ReferenceLine, CartesianGrid,
+} from "recharts";
+import {
   getTradingConfig, updateTradingConfig, toggleEngine, resetPaperBalance,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   getPositions, getTradeHistory, runBacktest,
@@ -8,9 +11,12 @@ import {
   BacktestResult,
 } from "../api/trading";
 import { searchStocks } from "../api/client";
+import { useToast } from "../hooks/useToast";
+import Toast from "../components/Toast";
 
 export default function Trading() {
   const qc = useQueryClient();
+  const { toasts, show: showToast, remove: removeToast } = useToast();
   const [signalLog, setSignalLog] = useState<TradingSignal[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<{ code: string; name: string }[]>([]);
@@ -30,7 +36,7 @@ export default function Trading() {
     return () => window.removeEventListener("resize", handler);
   }, []);
 
-  const { data: config } = useQuery({ queryKey: ["trading-config"], queryFn: getTradingConfig, refetchInterval: 30000 });
+  const { data: config } = useQuery({ queryKey: ["trading-config"], queryFn: getTradingConfig, refetchInterval: 15000 });
   const { data: watchlist = [] } = useQuery({ queryKey: ["watchlist"], queryFn: getWatchlist });
   const { data: positions = [] } = useQuery({ queryKey: ["positions"], queryFn: getPositions, refetchInterval: 30000 });
   const { data: history = [] } = useQuery({ queryKey: ["trade-history"], queryFn: getTradeHistory, refetchInterval: 30000 });
@@ -38,26 +44,35 @@ export default function Trading() {
   const toggleMut = useMutation({
     mutationFn: (running: boolean) => toggleEngine(running),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["trading-config"] }),
+    onError: () => showToast("엔진 상태 변경에 실패했습니다.", "error"),
   });
 
   const updateConfigMut = useMutation({
     mutationFn: updateTradingConfig,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trading-config"] }); setConfigForm({}); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["trading-config"] });
+      setConfigForm({});
+      showToast("설정이 저장되었습니다.", "success");
+    },
+    onError: () => showToast("설정 저장에 실패했습니다.", "error"),
   });
 
   const resetBalanceMut = useMutation({
     mutationFn: resetPaperBalance,
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["trading-config"] }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["trading-config"] }); showToast("잔고가 초기화되었습니다.", "success"); },
+    onError: () => showToast("잔고 초기화에 실패했습니다.", "error"),
   });
 
   const addWatchMut = useMutation({
     mutationFn: addToWatchlist,
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["watchlist"] }); setSearchQuery(""); setSearchResults([]); },
+    onError: (e: Error) => showToast(e.message ?? "종목 추가에 실패했습니다.", "error"),
   });
 
   const removeWatchMut = useMutation({
     mutationFn: removeFromWatchlist,
     onSuccess: () => qc.invalidateQueries({ queryKey: ["watchlist"] }),
+    onError: () => showToast("종목 삭제에 실패했습니다.", "error"),
   });
 
   // WebSocket 연결
@@ -69,6 +84,9 @@ export default function Trading() {
     ws.onmessage = (e) => {
       const signal: TradingSignal = JSON.parse(e.data);
       setSignalLog((prev) => [signal, ...prev].slice(0, 50));
+      if (signal.reason === "kill_switch") {
+        showToast("⚠️ 일일 손실한도 초과 — 자동매매가 정지되었습니다.", "error");
+      }
       qc.invalidateQueries({ queryKey: ["positions"] });
       qc.invalidateQueries({ queryKey: ["trade-history"] });
       qc.invalidateQueries({ queryKey: ["trading-config"] });
@@ -115,8 +133,32 @@ export default function Trading() {
   const returnRate = paperInitial > 0 ? ((paperBalance - paperInitial) / paperInitial * 100) : 0;
   const paperPositions = positions.filter(p => p.mode === "paper");
 
+  // 자산곡선: 거래 내역에서 누적 잔고 변화 계산 (오래된 순)
+  const equityCurve = (() => {
+    const paperTrades = [...(history as TradeHistory[])]
+      .filter(h => h.mode === "paper" && h.signal_type === "SELL" && h.profit_loss != null)
+      .sort((a, b) => new Date(a.executed_at).getTime() - new Date(b.executed_at).getTime());
+    let running = paperInitial;
+    const points = [{ time: "시작", balance: running, returnRate: 0 }];
+    for (const t of paperTrades) {
+      running += t.profit_loss!;
+      const rate = (running - paperInitial) / paperInitial * 100;
+      points.push({
+        time: new Date(t.executed_at).toLocaleDateString("ko-KR", { month: "2-digit", day: "2-digit" }),
+        balance: running,
+        returnRate: Math.round(rate * 100) / 100,
+      });
+    }
+    return points;
+  })();
+
   return (
     <div style={{ padding: isMobile ? "16px" : "24px", maxWidth: "1200px", margin: "0 auto" }}>
+      <div style={{ position: "fixed", top: "16px", right: "16px", zIndex: 200, display: "flex", flexDirection: "column", gap: "8px" }}>
+        {toasts.map(t => (
+          <Toast key={t.id} message={t.message} type={t.type} onClose={() => removeToast(t.id)} />
+        ))}
+      </div>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "24px" }}>자동매매</h1>
 
       {/* 상단 제어 패널 */}
@@ -249,13 +291,29 @@ export default function Trading() {
           );
         })()}
 
-        <button
-          onClick={() => updateConfigMut.mutate(configForm)}
-          disabled={updateConfigMut.isPending || Object.keys(configForm).length === 0}
-          style={{ marginTop: "12px", padding: "8px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
-        >
-          설정 저장
-        </button>
+        <div style={{ display: "flex", alignItems: "flex-end", gap: "12px", marginTop: "16px" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "0.75rem", color: "var(--text-muted)", marginBottom: "4px" }}>
+              일일 손실한도 (%) — Kill Switch
+            </label>
+            <input
+              type="number"
+              key={`daily_loss-${config?.daily_loss_limit_pct}`}
+              defaultValue={config?.daily_loss_limit_pct ?? 5}
+              step={0.5}
+              min={0.5}
+              onChange={(e) => setConfigForm(prev => ({ ...prev, daily_loss_limit_pct: parseFloat(e.target.value) }))}
+              style={{ width: "120px", padding: "8px", border: "1px solid var(--border)", borderRadius: "6px", fontSize: "0.875rem", background: "var(--input-bg)" }}
+            />
+          </div>
+          <button
+            onClick={() => updateConfigMut.mutate(configForm)}
+            disabled={updateConfigMut.isPending || Object.keys(configForm).length === 0}
+            style={{ padding: "8px 20px", background: "#3b82f6", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: 600 }}
+          >
+            설정 저장
+          </button>
+        </div>
       </div>
 
       {/* 감시 종목 */}
@@ -345,6 +403,24 @@ export default function Trading() {
           </div>
         )}
       </div>
+
+      {/* 자산곡선 차트 */}
+      {equityCurve.length >= 2 && (
+        <div style={{ background: "var(--card-bg)", border: "1px solid var(--border)", borderRadius: "12px", padding: "20px", marginBottom: "24px" }}>
+          <h2 style={{ fontSize: "1rem", fontWeight: 600, marginBottom: "4px" }}>모의투자 자산곡선</h2>
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginBottom: "12px" }}>매도 체결 기준 누적 수익률</div>
+          <ResponsiveContainer width="100%" height={180}>
+            <LineChart data={equityCurve} margin={{ left: 10, right: 20 }}>
+              <CartesianGrid strokeDasharray="3 3" />
+              <XAxis dataKey="time" tick={{ fontSize: 11 }} />
+              <YAxis tickFormatter={(v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`} tick={{ fontSize: 11 }} />
+              <Tooltip formatter={(v) => [`${Number(v) >= 0 ? "+" : ""}${Number(v).toFixed(2)}%`, "수익률"]} />
+              <ReferenceLine y={0} stroke="#888" strokeDasharray="3 3" />
+              <Line type="monotone" dataKey="returnRate" stroke="#8b5cf6" strokeWidth={2} dot={{ r: 3 }} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: isMobile ? "1fr" : "1fr 1fr", gap: "16px" }}>
         {/* 거래 내역 */}

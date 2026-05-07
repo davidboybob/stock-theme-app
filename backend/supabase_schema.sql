@@ -64,6 +64,7 @@ CREATE TABLE IF NOT EXISTS trading_config (
     macd_fast INTEGER NOT NULL DEFAULT 12,
     macd_slow INTEGER NOT NULL DEFAULT 26,
     macd_signal INTEGER NOT NULL DEFAULT 9,
+    daily_loss_limit_pct REAL NOT NULL DEFAULT 5.0,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

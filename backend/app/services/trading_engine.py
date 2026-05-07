@@ -97,10 +97,50 @@ def _ensure_config_sync() -> dict:
             "macd_fast": 12,
             "macd_slow": 26,
             "macd_signal": 9,
+            "daily_loss_limit_pct": 5.0,
         }
         sb.table("trading_config").insert(default).execute()
         return default
     return res.data[0]
+
+
+def _check_daily_loss_limit_sync(config: dict) -> bool:
+    """오늘 모의투자 손익 합산 → 일일 손실한도 초과 여부 반환"""
+    limit_pct = config.get("daily_loss_limit_pct", 5.0)
+    initial = config.get("paper_initial_capital", 10_000_000)
+    limit_amount = initial * limit_pct / 100
+
+    today = datetime.now(KST).date().isoformat()
+    sb = get_supabase()
+    res = sb.table("trade_history") \
+        .select("profit_loss") \
+        .eq("mode", "paper") \
+        .gte("executed_at", today) \
+        .execute()
+    rows = res.data or []
+    today_pnl = sum(r["profit_loss"] for r in rows if r.get("profit_loss") is not None)
+    return today_pnl <= -limit_amount  # 손실이 한도 초과
+
+
+async def _kill_switch_check(config: dict) -> bool:
+    """일일 손실한도 초과 시 엔진 자동 정지 + WS 알림. True 반환 시 사이클 중단."""
+    exceeded = await asyncio.to_thread(_check_daily_loss_limit_sync, config)
+    if not exceeded:
+        return False
+    logger.warning("[KillSwitch] 일일 손실한도 초과 — 엔진 자동 정지")
+    await asyncio.to_thread(_update_config_sync, {"is_running": False})
+    await _broadcast_signal(TradingSignal(
+        stock_code="",
+        stock_name="시스템",
+        signal_type="SELL",
+        price=0,
+        quantity=0,
+        reason="kill_switch",
+        mode="paper",
+        message="일일 손실한도를 초과하여 자동매매가 정지되었습니다.",
+        timestamp=datetime.now().isoformat(),
+    ))
+    return True
 
 
 def _update_config_sync(updates: dict) -> dict:
@@ -388,6 +428,10 @@ async def run_trading_cycle() -> None:
     try:
         config = await asyncio.to_thread(_get_config_sync)
         if not config or not config.get("is_running"):
+            return
+
+        # 일일 손실한도 초과 시 자동 정지
+        if await _kill_switch_check(config):
             return
 
         watchlist = await asyncio.to_thread(_get_watchlist_sync)

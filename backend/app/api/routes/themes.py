@@ -24,8 +24,8 @@ async def list_themes():
 
 @router.get("/{theme_id}/history")
 async def get_theme_history(theme_id: str, period: str = "1d"):
-    """당일 또는 지정 기간 테마 강도 추이 조회"""
-    hours = 24 if period == "1d" else 1
+    """테마 강도 추이 조회. period: 1d(24h) | 1w(7일) | 1m(30일)"""
+    hours = {"1d": 24, "1w": 24 * 7, "1m": 24 * 30}.get(period, 24)
     since = (datetime.now() - timedelta(hours=hours)).isoformat()
 
     def _fetch():

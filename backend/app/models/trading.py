@@ -34,6 +34,7 @@ class TradingConfig(BaseModel):
     macd_fast: int = 12
     macd_slow: int = 26
     macd_signal: int = 9
+    daily_loss_limit_pct: float = 5.0   # 일일 손실한도 (모의잔고 대비 %)
 
 
 class TradingConfigUpdate(BaseModel):
@@ -48,6 +49,7 @@ class TradingConfigUpdate(BaseModel):
     macd_fast: Optional[int] = None
     macd_slow: Optional[int] = None
     macd_signal: Optional[int] = None
+    daily_loss_limit_pct: Optional[float] = None
 
 
 class Position(BaseModel):
