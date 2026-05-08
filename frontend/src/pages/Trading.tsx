@@ -7,6 +7,8 @@ import {
   getTradingConfig, updateTradingConfig, toggleEngine, resetPaperBalance,
   getWatchlist, addToWatchlist, removeFromWatchlist,
   getPositions, getTradeHistory, runBacktest,
+} from "../api/trading";
+import type {
   TradingConfig, TradingSignal, Position, TradeHistory, WatchlistItem,
   BacktestResult,
 } from "../api/trading";
