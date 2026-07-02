@@ -1,4 +1,5 @@
 import asyncio
+import time
 import httpx
 from fastapi import APIRouter, HTTPException
 from typing import List
@@ -6,6 +7,10 @@ from app.models.stock import StockPrice, IndexPrice
 from app.services.naver_client import naver_client
 
 router = APIRouter(tags=["stocks"])
+
+# 지수는 30초 캐시 — 대시보드 진입마다 외부 호출이 나가지 않도록
+_INDICES_TTL = 30.0
+_indices_cache: dict = {"data": None, "ts": 0.0}
 
 
 @router.get("/stocks/search")
@@ -73,11 +78,16 @@ async def get_stock(code: str):
 
 @router.get("/indices", response_model=List[IndexPrice])
 async def get_indices():
+    now = time.monotonic()
+    if _indices_cache["data"] is not None and now - _indices_cache["ts"] < _INDICES_TTL:
+        return _indices_cache["data"]
     try:
         results = await asyncio.gather(
             naver_client.get_index_price("KOSPI"),
             naver_client.get_index_price("KOSDAQ"),
         )
-        return list(results)
+        _indices_cache["data"] = list(results)
+        _indices_cache["ts"] = time.monotonic()
+        return _indices_cache["data"]
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Failed to fetch index data: {e}")

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+import time
 from pathlib import Path
 from statistics import mean
 from typing import List
@@ -10,6 +11,12 @@ from app.models.stock import StockPrice
 from app.services.naver_client import naver_client as kis_client
 
 _themes_cache: List[Theme] = []
+
+# 무료 인스턴스(512MB)에서 요청마다 80종목 동시 수집 시 과부하로 재시작되므로
+# 강도 목록은 60초 캐시 + 단일 수집 잠금으로 보호한다
+_STRENGTHS_TTL = 60.0
+_strengths_cache: dict = {"data": None, "ts": 0.0}
+_strengths_lock = asyncio.Lock()
 
 
 def load_themes() -> List[Theme]:
@@ -79,6 +86,19 @@ async def get_theme_detail(theme_id: str) -> ThemeDetail | None:
 
 
 async def get_all_theme_strengths() -> List[ThemeStrength]:
-    themes = load_themes()
-    strengths = await asyncio.gather(*[get_theme_strength(t) for t in themes])
-    return sorted(strengths, key=lambda s: s.avg_change_rate, reverse=True)
+    now = time.monotonic()
+    if _strengths_cache["data"] is not None and now - _strengths_cache["ts"] < _STRENGTHS_TTL:
+        return _strengths_cache["data"]
+
+    async with _strengths_lock:
+        now = time.monotonic()
+        if _strengths_cache["data"] is not None and now - _strengths_cache["ts"] < _STRENGTHS_TTL:
+            return _strengths_cache["data"]
+
+        themes = load_themes()
+        # 테마 단위 순차 수집 — 동시 요청을 테마당 종목 수(10)로 제한
+        strengths = [await get_theme_strength(t) for t in themes]
+        result = sorted(strengths, key=lambda s: s.avg_change_rate, reverse=True)
+        _strengths_cache["data"] = result
+        _strengths_cache["ts"] = time.monotonic()
+        return result
