@@ -10,6 +10,7 @@ import ThemeDetail from "./pages/ThemeDetail";
 import Alerts from "./pages/Alerts";
 import Portfolio from "./pages/Portfolio";
 import Orders from "./pages/Orders";
+import Bot from "./pages/Bot";
 import { useTheme } from "./hooks/useTheme";
 import "./App.css";
 
@@ -48,6 +49,9 @@ export default function App() {
                 <NavLink to="/orders" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                   주문
                 </NavLink>
+                <NavLink to="/bot" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                  봇
+                </NavLink>
               </nav>
             </div>
             <IndexBar onToggleTheme={toggle} theme={theme} />
@@ -61,6 +65,7 @@ export default function App() {
               <Route path="/alerts" element={<Alerts />} />
               <Route path="/portfolio" element={<Portfolio />} />
               <Route path="/orders" element={<Orders />} />
+              <Route path="/bot" element={<Bot />} />
             </Routes>
           </main>
         </div>

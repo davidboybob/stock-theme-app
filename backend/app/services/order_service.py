@@ -24,21 +24,23 @@ def _log(entry: dict) -> None:
         warnings.warn(f"orders_log 기록 실패: {e}")
 
 
-def _base_entry(account_seq: int, action: str) -> dict:
+def _base_entry(account_seq: int, action: str, source: str = "manual") -> dict:
     return {
         "account_seq": account_seq,
         "action": action,
-        "source": "manual",
+        "source": source,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
 
 
-async def create_order(account_seq: int, order: OrderCreateIn) -> OrderOut:
+async def create_order(
+    account_seq: int, order: OrderCreateIn, source: str = "manual"
+) -> OrderOut:
     # 멱등성 키 자동 생성 (재시도로 인한 중복 주문 방지)
     if not order.client_order_id:
         order.client_order_id = uuid.uuid4().hex[:32]
 
-    entry = _base_entry(account_seq, "CREATE")
+    entry = _base_entry(account_seq, "CREATE", source)
     entry.update(
         symbol=order.symbol,
         side=order.side,

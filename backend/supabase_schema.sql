@@ -54,8 +54,40 @@ CREATE TABLE IF NOT EXISTS orders_log (
 );
 CREATE INDEX IF NOT EXISTS idx_orders_log_account ON orders_log (account_seq, created_at DESC);
 
+-- trade_signals 테이블 (자동매매 시그널 — dry-run 품질 검증용)
+CREATE TABLE IF NOT EXISTS trade_signals (
+    id BIGSERIAL PRIMARY KEY,
+    strategy TEXT NOT NULL,
+    action TEXT NOT NULL,              -- BUY / SELL
+    symbol TEXT NOT NULL,
+    symbol_name TEXT,
+    theme_id TEXT,
+    theme_name TEXT,
+    price REAL,
+    quantity REAL,
+    reason TEXT,
+    dry_run BOOLEAN NOT NULL DEFAULT TRUE,
+    executed BOOLEAN NOT NULL DEFAULT FALSE,
+    order_id TEXT,
+    error TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_trade_signals_created ON trade_signals (created_at DESC);
+
+-- bot_runs 테이블 (봇 시작/중지 이력)
+CREATE TABLE IF NOT EXISTS bot_runs (
+    id BIGSERIAL PRIMARY KEY,
+    event TEXT NOT NULL,               -- START / STOP
+    dry_run BOOLEAN,
+    interval_minutes INTEGER,
+    threshold REAL,
+    created_at TEXT NOT NULL
+);
+
 -- RLS 비활성화 (서버사이드 전용)
 ALTER TABLE alerts DISABLE ROW LEVEL SECURITY;
 ALTER TABLE alert_history DISABLE ROW LEVEL SECURITY;
 ALTER TABLE theme_history DISABLE ROW LEVEL SECURITY;
 ALTER TABLE orders_log DISABLE ROW LEVEL SECURITY;
+ALTER TABLE trade_signals DISABLE ROW LEVEL SECURITY;
+ALTER TABLE bot_runs DISABLE ROW LEVEL SECURITY;

@@ -32,7 +32,10 @@ class _RateLimiter:
 
     def __init__(self, rate: float):
         self.rate = rate
-        self.tokens = rate
+        # rate < 1(예: ACCOUNT 0.8)이면 버킷 상한이 1 미만이 되어 영원히
+        # 토큰이 모이지 않으므로, 상한은 최소 1을 보장해야 한다
+        self.capacity = max(rate, 1.0)
+        self.tokens = self.capacity
         self.updated = time.monotonic()
         self.lock = asyncio.Lock()
 
@@ -40,7 +43,7 @@ class _RateLimiter:
         async with self.lock:
             while True:
                 now = time.monotonic()
-                self.tokens = min(self.rate, self.tokens + (now - self.updated) * self.rate)
+                self.tokens = min(self.capacity, self.tokens + (now - self.updated) * self.rate)
                 self.updated = now
                 if self.tokens >= 1:
                     self.tokens -= 1

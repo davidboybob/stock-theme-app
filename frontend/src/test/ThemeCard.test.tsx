@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import ThemeCard from "../components/ThemeCard";
 import type { ThemeStrength } from "../api/client";
 
@@ -21,10 +22,15 @@ const mockThemeDown: ThemeStrength = {
 };
 
 function renderCard(props?: Partial<Parameters<typeof ThemeCard>[0]>) {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <MemoryRouter>
-      <ThemeCard theme={mockTheme} rank={1} {...props} />
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter>
+        <ThemeCard theme={mockTheme} rank={1} {...props} />
+      </MemoryRouter>
+    </QueryClientProvider>
   );
 }
 

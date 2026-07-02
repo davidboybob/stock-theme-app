@@ -1,4 +1,4 @@
-# 세션 인수인계 문서 (2026-07-02)
+# 세션 인수인계 문서 (2026-07-02, 최종 갱신 2026-07-03)
 
 > 토스증권 Open API 트레이딩 업그레이드 작업 기록. 다음 세션에서 이 문서부터 읽고 이어서 진행.
 > 전체 설계/로드맵은 `TRADING_PLAN.md` 참조.
@@ -23,19 +23,34 @@
 - `supabase_schema.sql`에 orders_log DDL 추가됨 (**아직 Supabase에서 실행 안 됨** — 아래 참조)
 - 검증: TRADING_ENABLED on/off 라우트 등록, tsc 통과 (기존 recharts 타입 에러도 수정함)
 
+### Phase 3 — 자동매매 봇 ✅ (2026-07-03)
+- `services/trading/strategy.py` — Strategy 추상 인터페이스
+- `services/trading/strategies/theme_momentum.py` — 테마 모멘텀 전략: 테마 평균 등락률 ≥ 임계(기본 +2%) & 상승비율 ≥ 60% → 테마 내 등락률 1위 종목 BUY, 종목당 60분 쿨다운
+- `services/trading/engine.py` — BotEngine: APScheduler 주기 실행(기본 5분, 시작 즉시 1회), 장운영시간 체크(토스 market-calendar `today.integrated.regularMarket` 창 1일 캐시, 실패 시 평일 09:00~15:30 휴리스틱), 일일 시그널 한도, 시그널 메모리 200개 + Supabase `trade_signals` 기록(fail-soft), `bot_runs` 시작/중지 이력
+- **안전 게이트**: dry-run 기본. 실주문 전환은 `BOT_LIVE_TRADING=true` env + 런타임 토글 **둘 다** 필요 (env 없이 전환 시도 → 403 확인). live 주문은 지정가만, 종목당 예산 `BOT_ORDER_BUDGET`(기본 10만원)
+- `api/routes/trading.py` — GET/POST /api/trading/{status,start,stop,mode,signals}
+- `order_service.create_order`에 source 파라미터 추가 (봇 주문은 orders_log에 source='bot')
+- 프론트: `pages/Bot.tsx`(상태 카드, 시작/중지, dry-run 토글, 시그널 테이블) + "봇" 네비
+- 검증: 스모크 전체 통과(시작→즉시 실행→"장 운영시간 아님 — 스킵", mode 403, 중지 200), tsc·vitest 13개 통과
+
+### 2026-07-03 추가 수정
+- **toss_client rate limiter 치명 버그 수정**: 토큰버킷 상한이 `min(rate, ...)`여서 rate<1인 ACCOUNT(0.8)는 토큰이 영원히 1이 안 됨 → `/api/account` 무한 대기. 상한을 `max(rate, 1)`로 교정. (이전 세션들의 "샌드박스라 검증 불가" 결론 중 일부는 사실 이 버그였음)
+- **실계좌 읽기 전용 검증 완료**: 계좌 1개(seq=1, BROKERAGE), 보유 7종목, 매수가능금액 정상 응답 — 0.3초. 주문 실행은 미실시(사용자 몫)
+- main 브랜치 데모 성능 개선(테마 상세 캐시·SWR·지수 야후 폴백) 배포 완료 + wip에 머지됨. 상세: 클릭당 4~10초 → 캐시 0.1초대
+
 ## 사용자 환경 (중요)
 
 - **로컬 Python = 3.9** (backend/venv). `str | None` 등 3.10 문법이 FastAPI/Pydantic 런타임 평가에서 터짐 → 라우트/모델은 `Optional[]` 사용할 것 (이미 수정 완료)
 - `.env`는 프로젝트 루트 (backend 아님). TOSS_CLIENT_ID/SECRET 사용자가 입력 완료, TRADING_ENABLED=true
 - `.env`는 git 미추적 (안전 확인됨)
-- 클로드 샌드박스에서 외부 API(토스/네이버/Supabase) 직접 호출 불가 — 실연동 검증은 사용자 로컬에서만 가능
+- 클로드 샌드박스: 기본 Bash는 외부망 차단이지만 **샌드박스 해제 포그라운드 명령으로는 실연동 검증 가능** (백그라운드 실행은 해제 플래그와 무관하게 차단됨 주의). uvicorn을 `(uvicorn ... &)` 형태로 포그라운드 명령 안에서 띄우면 실네트워크 동작
 - 토스 API: 응답 `{"result": ...}` envelope, 계좌/주문엔 `X-Tossinvest-Account` 헤더, 종료주문 목록 API 미지원(OPEN만), 문서 developers.tossinvest.com/llms.txt
 
 ## ⚠️ 미해결 이슈 (다음 세션 첫 작업)
 
 1. ~~**포트 8000 점유**~~ ✅ **해결 (2026-07-03)** — 점유 주체는 이 앱의 옛 프로세스가 아니라 **04-meditation-uni 프로젝트의 uvicorn**이었음 (그래서 kill해도 의미가 없었고, health에 `trading` 키도 없었던 것). 사용자 선택에 따라 이 앱 백엔드를 **포트 8001로 이전**: `start_app.command`, vite proxy, 프론트 API/WS 기본값, README/SPEC 일괄 수정. 8001에서 새 코드 기동 → `/api/health` = `{"status":"ok","trading":true}` 확인 완료. meditation-uni는 8000 그대로 두 프로젝트 동시 운영 가능.
-2. **Supabase 프로젝트 일시정지 + Supabase 자체 장애** — 무료 플랜 auto-pause 상태인데 장애("No backups found")로 Resume 버튼이 안 뜸. 복구 후: 대시보드에서 Resume → SQL Editor에서 `backend/supabase_schema.sql`의 orders_log 부분 실행. (Supabase 없어도 잔고/주문은 동작, 주문 이력만 안 남음)
-3. **실계좌 연동 미검증** — 백엔드가 정상으로 뜨면 http://localhost:5173/portfolio 에서 잔고 확인 → 소액 1주 지정가 매수 → 주문 탭에서 취소 테스트 (⚠️ 실주문 실행은 사용자가 직접)
+2. **Supabase 프로젝트 일시정지 (여전히)** — 2026-07-03 기준 DNS도 안 풀림(정지 상태). MCP 연결 계정에는 이 프로젝트(jopyeznvqildrumpwqti)가 없어 원격 복구 불가 → **사용자가 대시보드에서 Resume** 후 SQL Editor에서 `backend/supabase_schema.sql` 실행 (orders_log + trade_signals + bot_runs 추가분 포함). Supabase 없어도 잔고/주문/봇 동작, 이력·시그널 영속 저장만 안 됨
+3. ~~**실계좌 연동 미검증**~~ ✅ **읽기 전용 검증 완료 (2026-07-03)** — 남은 것: 소액 1주 지정가 매수 → 주문 탭에서 취소 실거래 테스트 (⚠️ 실주문 실행은 사용자가 직접)
 
 ## 실행 방법
 
@@ -44,5 +59,6 @@
 
 ## 다음 단계 (로드맵)
 
-- **Phase 3 — 자동매매 봇**: Strategy 인터페이스 + 테마 모멘텀 전략(기존 테마 강도 활용), dry-run 기본값(trade_signals 기록만), 장운영시간 체크(market-calendar/KR), Bot 페이지(전략 on/off, dry-run 토글). 최소 1주일 dry-run 후 실전 전환.
-- **Phase 4 — 안전장치**: 일 손실 한도, 종목당/일일 주문 금액 상한, 연속 실패 자동 정지, kill switch, 일일 리포트.
+- **dry-run 운영**: 장중에 봇 페이지에서 시작 → 최소 1주일 시그널 품질 관찰 (Supabase 복구되면 trade_signals에 영속 축적)
+- **Phase 4 — 안전장치**: 일 손실 한도, 종목당/일일 주문 금액 상한, 연속 실패 자동 정지, kill switch API, 일일 리포트. 이후 `BOT_LIVE_TRADING=true` 전환 검토
+- SELL 시그널 로직 (현재 전략은 BUY만) — 보유종목 테마 하락 반전 시 매도 등

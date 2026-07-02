@@ -14,6 +14,14 @@ class Settings(BaseSettings):
     # 트레이딩 기능 게이트 (공개 배포에서는 반드시 false)
     trading_enabled: bool = False
 
+    # 자동매매 봇 (Phase 3)
+    # 실주문 전환은 이 값이 true일 때만 가능 — false면 UI 토글과 무관하게 dry-run 강제
+    bot_live_trading: bool = False
+    bot_interval_minutes: int = 5
+    bot_theme_threshold: float = 2.0     # 테마 평균 등락률 매수 임계 (%)
+    bot_order_budget: int = 100000       # live 시 종목당 주문 예산 (원)
+    bot_max_signals_per_day: int = 20
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

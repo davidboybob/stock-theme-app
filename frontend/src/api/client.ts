@@ -248,3 +248,56 @@ export const fetchSellableQuantity = (accountSeq: number, symbol: string) =>
       params: { account_seq: accountSeq, symbol },
     })
     .then((r) => r.data);
+
+// ── 자동매매 봇 (Phase 3) ──────────────────────────────
+
+export interface TradeSignal {
+  strategy: string;
+  action: string;
+  symbol: string;
+  symbol_name: string;
+  theme_id: string;
+  theme_name: string;
+  price: number | null;
+  quantity: number;
+  reason: string;
+  dry_run: boolean;
+  executed: boolean;
+  order_id: string | null;
+  error: string | null;
+  created_at: string;
+}
+
+export interface BotStatus {
+  running: boolean;
+  dry_run: boolean;
+  live_allowed: boolean;
+  interval_minutes: number;
+  threshold: number;
+  market_open: boolean;
+  account_seq: number | null;
+  last_run_at: string | null;
+  last_run_result: string | null;
+  signals_today: number;
+  max_signals_per_day: number;
+}
+
+export const fetchBotStatus = () =>
+  apiClient.get<BotStatus>("/trading/status").then((r) => r.data);
+
+export const startBot = (body: {
+  account_seq?: number;
+  interval_minutes?: number;
+  threshold?: number;
+}) => apiClient.post<BotStatus>("/trading/start", body).then((r) => r.data);
+
+export const stopBot = () =>
+  apiClient.post<BotStatus>("/trading/stop", {}).then((r) => r.data);
+
+export const setBotMode = (dryRun: boolean) =>
+  apiClient.post<BotStatus>("/trading/mode", { dry_run: dryRun }).then((r) => r.data);
+
+export const fetchBotSignals = (limit = 50) =>
+  apiClient
+    .get<TradeSignal[]>("/trading/signals", { params: { limit } })
+    .then((r) => r.data);
