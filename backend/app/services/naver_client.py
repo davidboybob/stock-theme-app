@@ -173,5 +173,51 @@ class NaverClient:
 
         return result
 
+    async def get_stock_history(self, code: str, count: int = 60) -> list[dict]:
+        """네이버 증권 일봉 데이터 조회 (최근 N일)"""
+        url = "https://fchart.stock.naver.com/siseJson.nhn"
+        params = {
+            "symbol": code,
+            "requestType": "1",
+            "count": count,
+            "timeframe": "day",
+        }
+        headers = {
+            "Referer": "https://finance.naver.com/",
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+        }
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(url, params=params, headers=headers)
+                resp.raise_for_status()
+            # 응답 형식: [[날짜, 시가, 고가, 저가, 종가, 거래량], ...]
+            import json as _json
+            raw = resp.text.strip()
+            rows = _json.loads(raw)
+            result = []
+            for row in rows:
+                if len(row) < 6:
+                    continue
+                date_str = str(row[0]).strip()
+                try:
+                    close = int(row[4])
+                    open_ = int(row[1])
+                    high = int(row[2])
+                    low = int(row[3])
+                    volume = int(row[5])
+                except (ValueError, TypeError):
+                    continue
+                result.append({
+                    "date": date_str,
+                    "open": open_,
+                    "high": high,
+                    "low": low,
+                    "close": close,
+                    "volume": volume,
+                })
+            return result
+        except Exception:
+            return []
+
 
 naver_client = NaverClient()

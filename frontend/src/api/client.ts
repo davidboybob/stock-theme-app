@@ -122,3 +122,129 @@ export const fetchThemeHistory = (id: string, period = "1d") =>
 
 export const WS_URL =
   (import.meta.env.VITE_WS_URL || "ws://localhost:8000") + "/api/ws/alerts";
+
+// ── 트레이딩 (토스증권) ──────────────────────────────────
+
+export interface TossAccount {
+  account_no: string;
+  account_seq: number;
+  account_type: string;
+}
+
+export interface CurrencyAmount {
+  krw?: number | null;
+  usd?: number | null;
+  [key: string]: unknown;
+}
+
+export interface ProfitLossInfo {
+  amount?: number;
+  amountAfterCost?: number;
+  rate?: number;
+  rateAfterCost?: number;
+  [key: string]: unknown;
+}
+
+export interface HoldingItem {
+  symbol: string;
+  name: string;
+  market_country: string;
+  currency: string;
+  quantity: number;
+  last_price: number;
+  average_purchase_price: number;
+  market_value: CurrencyAmount | null;
+  profit_loss: ProfitLossInfo | null;
+  daily_profit_loss: ProfitLossInfo | null;
+}
+
+export interface PortfolioSummary {
+  total_purchase_amount: CurrencyAmount | null;
+  market_value: CurrencyAmount | null;
+  profit_loss: ProfitLossInfo | null;
+  daily_profit_loss: ProfitLossInfo | null;
+  items: HoldingItem[];
+}
+
+export const fetchTossAccounts = () =>
+  apiClient.get<TossAccount[]>("/account").then((r) => r.data);
+
+export const fetchHoldings = (accountSeq: number) =>
+  apiClient
+    .get<PortfolioSummary>("/account/holdings", { params: { account_seq: accountSeq } })
+    .then((r) => r.data);
+
+// ── 주문 ──────────────────────────────────────────────
+
+export interface OrderCreate {
+  symbol: string;
+  side: "BUY" | "SELL";
+  order_type: "LIMIT" | "MARKET";
+  quantity: number;
+  price?: number | null;
+  confirm_high_value?: boolean;
+}
+
+export interface Order {
+  order_id: string;
+  symbol: string;
+  side: string;
+  order_type: string;
+  status: string;
+  price: number | null;
+  quantity: number;
+  filled_quantity: number;
+  currency: string;
+  ordered_at: string | null;
+  canceled_at: string | null;
+}
+
+export interface OrderLogEntry {
+  id: number;
+  action: string;
+  source: string;
+  symbol: string | null;
+  side: string | null;
+  order_type: string | null;
+  quantity: number | null;
+  price: number | null;
+  order_id: string | null;
+  status: string | null;
+  success: boolean | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+}
+
+const acct = (accountSeq: number) => ({ params: { account_seq: accountSeq } });
+
+export const createOrder = (accountSeq: number, data: OrderCreate) =>
+  apiClient.post<Order>("/orders", data, acct(accountSeq)).then((r) => r.data);
+
+export const fetchOpenOrders = (accountSeq: number) =>
+  apiClient.get<Order[]>("/orders", acct(accountSeq)).then((r) => r.data);
+
+export const cancelOrder = (accountSeq: number, orderId: string) =>
+  apiClient.post<Order>(`/orders/${orderId}/cancel`, {}, acct(accountSeq)).then((r) => r.data);
+
+export const modifyOrder = (
+  accountSeq: number,
+  orderId: string,
+  data: { quantity?: number; price?: number }
+) =>
+  apiClient.post<Order>(`/orders/${orderId}/modify`, data, acct(accountSeq)).then((r) => r.data);
+
+export const fetchOrderLog = (accountSeq: number) =>
+  apiClient.get<OrderLogEntry[]>("/orders/log", acct(accountSeq)).then((r) => r.data);
+
+export const fetchBuyingPower = (accountSeq: number) =>
+  apiClient
+    .get<{ amount?: number; [k: string]: unknown }>("/orders/buying-power", acct(accountSeq))
+    .then((r) => r.data);
+
+export const fetchSellableQuantity = (accountSeq: number, symbol: string) =>
+  apiClient
+    .get<{ quantity?: number; [k: string]: unknown }>("/orders/sellable-quantity", {
+      params: { account_seq: accountSeq, symbol },
+    })
+    .then((r) => r.data);

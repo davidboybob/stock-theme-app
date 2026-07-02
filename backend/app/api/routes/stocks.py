@@ -68,6 +68,16 @@ async def get_stock_detail(code: str):
         raise HTTPException(status_code=502, detail=f"Failed to fetch stock detail: {e}")
 
 
+@router.get("/stocks/{code}/history")
+async def get_stock_history(code: str, count: int = 60):
+    """종목 일봉 히스토리 조회 (기본 60일)"""
+    try:
+        data = await naver_client.get_stock_history(code, count=min(count, 250))
+        return data
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to fetch stock history: {e}")
+
+
 @router.get("/stocks/{code}", response_model=StockPrice)
 async def get_stock(code: str):
     try:

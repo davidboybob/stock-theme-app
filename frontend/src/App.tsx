@@ -8,6 +8,8 @@ import StockModal from "./components/StockModal";
 import Dashboard from "./pages/Dashboard";
 import ThemeDetail from "./pages/ThemeDetail";
 import Alerts from "./pages/Alerts";
+import Portfolio from "./pages/Portfolio";
+import Orders from "./pages/Orders";
 import { useTheme } from "./hooks/useTheme";
 import "./App.css";
 
@@ -39,6 +41,12 @@ export default function App() {
                 <NavLink to="/alerts" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
                   알림
                 </NavLink>
+                <NavLink to="/portfolio" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                  내 계좌
+                </NavLink>
+                <NavLink to="/orders" className={({ isActive }) => isActive ? "nav-link active" : "nav-link"}>
+                  주문
+                </NavLink>
               </nav>
             </div>
             <IndexBar onToggleTheme={toggle} theme={theme} />
@@ -50,6 +58,8 @@ export default function App() {
               <Route path="/" element={<Dashboard />} />
               <Route path="/themes/:id" element={<ThemeDetail />} />
               <Route path="/alerts" element={<Alerts />} />
+              <Route path="/portfolio" element={<Portfolio />} />
+              <Route path="/orders" element={<Orders />} />
             </Routes>
           </main>
         </div>
