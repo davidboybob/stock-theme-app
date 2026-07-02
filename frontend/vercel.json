@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/themes", "destination": "https://stock-theme-app.onrender.com/api/themes/" },
+    { "source": "/api/:path*", "destination": "https://stock-theme-app.onrender.com/api/:path*" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
