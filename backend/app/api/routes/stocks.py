@@ -1,5 +1,7 @@
 import asyncio
 import time
+from urllib.parse import quote
+
 import httpx
 from fastapi import APIRouter, HTTPException
 from typing import List
@@ -11,6 +13,40 @@ router = APIRouter(tags=["stocks"])
 # 지수는 30초 캐시 — 대시보드 진입마다 외부 호출이 나가지 않도록
 _INDICES_TTL = 30.0
 _indices_cache: dict = {"data": None, "ts": 0.0}
+
+# 네이버 지수 API는 해외 IP(Render 등)에서 datas가 빈 배열로 온다 — 야후를 대체 소스로 사용
+_YAHOO_INDEX_SYMBOLS = {"KOSPI": "^KS11", "KOSDAQ": "^KQ11"}
+
+
+async def _yahoo_index_price(index_code: str) -> IndexPrice:
+    symbol = quote(_YAHOO_INDEX_SYMBOLS[index_code], safe="")
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+    async with httpx.AsyncClient(timeout=5.0) as client:
+        resp = await client.get(
+            url,
+            params={"interval": "1d", "range": "1d"},
+            headers={"User-Agent": "Mozilla/5.0"},
+        )
+        resp.raise_for_status()
+        meta = resp.json()["chart"]["result"][0]["meta"]
+    price = float(meta["regularMarketPrice"])
+    prev = float(meta.get("chartPreviousClose") or 0)
+    change = price - prev if prev else 0.0
+    rate = (change / prev * 100) if prev else 0.0
+    return IndexPrice(
+        code=index_code,
+        name=index_code,
+        current_value=round(price, 2),
+        change_value=round(change, 2),
+        change_rate=round(rate, 2),
+    )
+
+
+async def _fetch_index(index_code: str) -> IndexPrice:
+    try:
+        return await naver_client.get_index_price(index_code)
+    except Exception:
+        return await _yahoo_index_price(index_code)
 
 
 @router.get("/stocks/search")
@@ -93,11 +129,14 @@ async def get_indices():
         return _indices_cache["data"]
     try:
         results = await asyncio.gather(
-            naver_client.get_index_price("KOSPI"),
-            naver_client.get_index_price("KOSDAQ"),
+            _fetch_index("KOSPI"),
+            _fetch_index("KOSDAQ"),
         )
         _indices_cache["data"] = list(results)
         _indices_cache["ts"] = time.monotonic()
         return _indices_cache["data"]
     except Exception as e:
+        if _indices_cache["data"] is not None:
+            # 수집 실패 — 마지막 정상값 유지 (헤더 지수바가 502로 깨지지 않게)
+            return _indices_cache["data"]
         raise HTTPException(status_code=502, detail=f"Failed to fetch index data: {e}")
