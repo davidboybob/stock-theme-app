@@ -41,7 +41,11 @@ class NaverClient:
                         response.raise_for_status()
                         data = response.json()
 
-        item = data["datas"][0]
+        # 해외 IP 등에서 200이지만 datas가 빈 배열로 오는 경우가 있다 — IndexError 방지
+        datas = data.get("datas") or []
+        if not datas:
+            raise ValueError(f"네이버 응답에 datas가 비어 있음 (stock {code})")
+        item = datas[0]
         current = _parse_number(item.get("closePrice", "0"))
         change = _parse_number(item.get("compareToPreviousClosePrice", "0"))
         change_rate = _parse_number(item.get("fluctuationsRatio", "0"))
@@ -79,7 +83,10 @@ class NaverClient:
                         response.raise_for_status()
                         data = response.json()
 
-        item = data["datas"][0]
+        datas = data.get("datas") or []
+        if not datas:
+            raise ValueError(f"네이버 응답에 datas가 비어 있음 (index {index_code})")
+        item = datas[0]
         current = _parse_number(item.get("closePrice", "0"))
         change = _parse_number(item.get("compareToPreviousClosePrice", "0"))
         change_rate = _parse_number(item.get("fluctuationsRatio", "0"))

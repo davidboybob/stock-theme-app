@@ -14,7 +14,8 @@ import "./App.css";
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 25000,
+      // 서버 캐시 TTL(60초)과 맞춤 — 화면 전환 시 불필요한 재조회 방지
+      staleTime: 60000,
       retry: 1,
     },
   },
