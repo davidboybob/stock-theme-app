@@ -171,7 +171,7 @@ cd backend
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8001
 ```
 
 ### 프론트엔드 실행
@@ -185,7 +185,7 @@ npm run dev
 | 서비스 | URL |
 |--------|-----|
 | 프론트엔드 | http://localhost:5173 |
-| API 문서 (Swagger) | http://localhost:8000/docs |
+| API 문서 (Swagger) | http://localhost:8001/docs |
 
 ### Docker Compose (로컬)
 

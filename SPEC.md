@@ -9,7 +9,7 @@
 ```
 [네이버 증권 Polling API]
          ↓ HTTP (인증 불필요)
-[Backend: FastAPI + uvicorn :8000]
+[Backend: FastAPI + uvicorn :8001]
   ├── themes router     → 테마 강도 계산
   ├── stocks router     → 종목/지수 조회
   ├── alerts router     → 알림 CRUD

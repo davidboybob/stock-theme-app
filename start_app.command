@@ -2,12 +2,12 @@
 # 테마주 트레이딩 앱 로컬 실행 스크립트 (백엔드 + 프론트엔드)
 cd "$(dirname "$0")"
 
-echo "=== 기존 프로세스 정리 (포트 8000, 5173) ==="
-lsof -ti:8000 | xargs kill -9 2>/dev/null
+echo "=== 기존 프로세스 정리 (포트 8001, 5173) ==="
+lsof -ti:8001 | xargs kill -9 2>/dev/null
 lsof -ti:5173 | xargs kill -9 2>/dev/null
 sleep 1
 
-echo "=== 백엔드 시작 (포트 8000) ==="
+echo "=== 백엔드 시작 (포트 8001) ==="
 cd backend
 if [ ! -d venv ]; then
   python3 -m venv venv
@@ -16,7 +16,7 @@ source venv/bin/activate
 pip install -q -r requirements.txt
 # 루트 .env 로드
 set -a; source ../.env; set +a
-uvicorn app.main:app --port 8000 &
+uvicorn app.main:app --port 8001 &
 BACKEND_PID=$!
 cd ..
 

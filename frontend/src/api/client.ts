@@ -1,6 +1,6 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8001";
 
 export const apiClient = axios.create({
   baseURL: `${BASE_URL}/api`,
@@ -121,7 +121,7 @@ export const fetchThemeHistory = (id: string, period = "1d") =>
   apiClient.get<ThemeHistory[]>(`/themes/${id}/history`, { params: { period } }).then((r) => r.data);
 
 export const WS_URL =
-  (import.meta.env.VITE_WS_URL || "ws://localhost:8000") + "/api/ws/alerts";
+  (import.meta.env.VITE_WS_URL || "ws://localhost:8001") + "/api/ws/alerts";
 
 // ── 트레이딩 (토스증권) ──────────────────────────────────
 

@@ -13,7 +13,7 @@ import type { StockDetail } from "../api/client";
 import OrderPanel from "./OrderPanel";
 import { useTradingAccount } from "../hooks/useTradingAccount";
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8001";
 
 interface Props {
   code: string;

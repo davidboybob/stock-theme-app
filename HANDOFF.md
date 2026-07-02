@@ -33,16 +33,14 @@
 
 ## ⚠️ 미해결 이슈 (다음 세션 첫 작업)
 
-1. **포트 8000을 오래된 uvicorn 프로세스가 점유 중** — 예전(수개월 전)에 띄운 uvicorn이 옛 코드로 응답하고 있어서 새 백엔드가 `Errno 48 address already in use`로 못 뜸. `start_app.command`에 `lsof -ti:8000 | xargs kill -9`를 넣었지만 이 프로세스가 안 죽었음 (권한/세션 문제 추정).
-   - 해결: 터미널에서 `sudo lsof -ti:8000 | xargs sudo kill -9` 또는 Mac 재부팅 후 start_app.command 재실행
-   - 판별법: `curl localhost:8000/api/health` 응답에 `"trading"` 키가 있으면 새 코드, 없으면 옛 프로세스
+1. ~~**포트 8000 점유**~~ ✅ **해결 (2026-07-03)** — 점유 주체는 이 앱의 옛 프로세스가 아니라 **04-meditation-uni 프로젝트의 uvicorn**이었음 (그래서 kill해도 의미가 없었고, health에 `trading` 키도 없었던 것). 사용자 선택에 따라 이 앱 백엔드를 **포트 8001로 이전**: `start_app.command`, vite proxy, 프론트 API/WS 기본값, README/SPEC 일괄 수정. 8001에서 새 코드 기동 → `/api/health` = `{"status":"ok","trading":true}` 확인 완료. meditation-uni는 8000 그대로 두 프로젝트 동시 운영 가능.
 2. **Supabase 프로젝트 일시정지 + Supabase 자체 장애** — 무료 플랜 auto-pause 상태인데 장애("No backups found")로 Resume 버튼이 안 뜸. 복구 후: 대시보드에서 Resume → SQL Editor에서 `backend/supabase_schema.sql`의 orders_log 부분 실행. (Supabase 없어도 잔고/주문은 동작, 주문 이력만 안 남음)
 3. **실계좌 연동 미검증** — 백엔드가 정상으로 뜨면 http://localhost:5173/portfolio 에서 잔고 확인 → 소액 1주 지정가 매수 → 주문 탭에서 취소 테스트 (⚠️ 실주문 실행은 사용자가 직접)
 
 ## 실행 방법
 
-`start_app.command` 더블클릭 (백엔드 8000 + 프론트 5173 + 브라우저 자동 오픈), 종료는 터미널에서 Ctrl+C.
-프론트는 정상 동작 확인됨 (Vite 5173). 백엔드만 위 이슈 1 해결 필요.
+`start_app.command` 더블클릭 (백엔드 **8001** + 프론트 5173 + 브라우저 자동 오픈), 종료는 터미널에서 Ctrl+C.
+백엔드 8001 기동·health 확인 완료(2026-07-03), 프론트 tsc 통과. 남은 검증은 실계좌 연동(이슈 3)뿐.
 
 ## 다음 단계 (로드맵)
 
