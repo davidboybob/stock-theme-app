@@ -16,14 +16,34 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import get_settings
 from app.db import get_supabase
-from app.models.bot import BotStatus, TradeSignal
+from app.models.bot import BotReport, BotStatus, TradeSignal
+from app.models.portfolio import parse_holdings
 from app.models.trading import OrderCreateIn
 from app.services import order_service
 from app.services.toss_client import get_toss_client
+from app.services.trading.risk import RiskManager
 from app.services.trading.strategies.theme_momentum import ThemeMomentumStrategy
 
 KST = timezone(timedelta(hours=9))
 _MAX_MEMORY_SIGNALS = 200
+
+
+def _krw_amount(value) -> Optional[float]:
+    """토스 손익 필드에서 KRW 금액 추출 — 숫자/문자열/통화별 dict 모두 방어."""
+    if value is None:
+        return None
+    if isinstance(value, (int, float)):
+        return float(value)
+    if isinstance(value, str):
+        try:
+            return float(value.replace(",", ""))
+        except ValueError:
+            return None
+    if isinstance(value, dict):
+        for key in ("KRW", "krw", "amount", "totalAmount", "value"):
+            if key in value:
+                return _krw_amount(value[key])
+    return None
 
 
 def _sb_insert(table: str, entry: dict) -> None:
@@ -39,6 +59,7 @@ class BotEngine:
         settings = get_settings()
         self._scheduler: Optional[AsyncIOScheduler] = None
         self.strategy = ThemeMomentumStrategy()
+        self.risk = RiskManager()
         self.dry_run = True
         self.interval_minutes = settings.bot_interval_minutes
         self.account_seq: Optional[int] = None
@@ -111,6 +132,12 @@ class BotEngine:
                 )
                 return
 
+            # live 모드: 계좌 일 손익이 한도를 넘으면 kill switch (주문 차단)
+            hit = await self._check_daily_loss()
+            if hit:
+                self.last_run_result = hit
+                return
+
             signals = await self.strategy.generate_signals()
             for sig in signals:
                 await self._handle_signal(sig)
@@ -119,13 +146,32 @@ class BotEngine:
             self.last_run_result = f"오류: {e}"
             warnings.warn(f"봇 실행 오류: {e}")
 
+    async def _check_daily_loss(self) -> Optional[str]:
+        settings = get_settings()
+        live = not self.dry_run and settings.bot_live_trading
+        if not live or not self.account_seq or self.risk.kill_switch:
+            return None
+        try:
+            raw = await get_toss_client().get_holdings(self.account_seq)
+            pnl = _krw_amount(parse_holdings(raw).daily_profit_loss)
+            if pnl is None:
+                return None
+            return self.risk.check_daily_loss(pnl)
+        except Exception as e:
+            warnings.warn(f"일 손익 조회 실패 (손실 한도 체크 스킵): {e}")
+            return None
+
     async def _handle_signal(self, sig: TradeSignal) -> None:
         settings = get_settings()
         sig.dry_run = self.dry_run or not settings.bot_live_trading
         if sig.price:
             sig.quantity = max(settings.bot_order_budget // sig.price, 1)
 
-        if not sig.dry_run:
+        # 리스크 체크는 dry-run에서도 수행 — 한도 설정 검증 데이터를 남긴다
+        sig.blocked = self.risk.check_order(sig.price, sig.quantity)
+        if sig.blocked:
+            self.risk.record_blocked()
+        elif not sig.dry_run:
             await self._execute_order(sig)
 
         self._signals.append(sig)
@@ -151,8 +197,12 @@ class BotEngine:
             )
             sig.executed = True
             sig.order_id = parsed.order_id
+            self.risk.record_order_success(sig.price, sig.quantity)
         except Exception as e:
             sig.error = str(e)[:300]
+            auto_stop = self.risk.record_order_failure()
+            if auto_stop:
+                warnings.warn(f"봇 자동 정지: {auto_stop}")
 
     # ── 제어 ───────────────────────────────────────────
 
@@ -178,6 +228,15 @@ class BotEngine:
             minutes=self.interval_minutes,
             id="trading_bot",
             next_run_time=datetime.now(KST),  # 시작 즉시 1회 실행
+        )
+        # 장 마감 직후 일일 리포트를 bot_runs에 남긴다
+        self._scheduler.add_job(
+            self._daily_report_job,
+            "cron",
+            hour=15,
+            minute=35,
+            timezone=KST,
+            id="trading_bot_report",
         )
         self._scheduler.start()
         _sb_insert(
@@ -208,6 +267,36 @@ class BotEngine:
     def signals(self, limit: int = 50) -> List[TradeSignal]:
         return list(reversed(self._signals[-limit:]))
 
+    def report(self) -> BotReport:
+        """오늘 활동 요약 (메모리 시그널 기준)."""
+        today = datetime.now(KST).date().isoformat()
+        todays = [s for s in self._signals if s.created_at[:10] == today]
+        snap = self.risk.snapshot()
+        return BotReport(
+            date=today,
+            signals=len(todays),
+            blocked=sum(1 for s in todays if s.blocked),
+            executed=sum(1 for s in todays if s.executed),
+            failed=sum(1 for s in todays if s.error),
+            dry_run_signals=sum(1 for s in todays if s.dry_run),
+            daily_order_amount=snap["daily_order_amount"],
+            kill_switch=snap["kill_switch"],
+            kill_reason=snap["kill_reason"],
+            last_run_at=self.last_run_at,
+            last_run_result=self.last_run_result,
+        )
+
+    async def _daily_report_job(self) -> None:
+        rep = self.report()
+        _sb_insert(
+            "bot_runs",
+            {
+                "event": "REPORT",
+                "detail": rep.model_dump_json(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+
     async def status(self) -> BotStatus:
         settings = get_settings()
         self._roll_daily_counter()
@@ -223,6 +312,9 @@ class BotEngine:
             last_run_result=self.last_run_result,
             signals_today=self._signals_today,
             max_signals_per_day=settings.bot_max_signals_per_day,
+            kill_switch=self.risk.kill_switch,
+            kill_reason=self.risk.kill_reason,
+            risk=self.risk.snapshot(),
         )
 
 

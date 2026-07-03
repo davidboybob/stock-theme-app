@@ -70,17 +70,19 @@ CREATE TABLE IF NOT EXISTS trade_signals (
     executed BOOLEAN NOT NULL DEFAULT FALSE,
     order_id TEXT,
     error TEXT,
+    blocked TEXT,                      -- 리스크 체크 차단 사유
     created_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_trade_signals_created ON trade_signals (created_at DESC);
 
--- bot_runs 테이블 (봇 시작/중지 이력)
+-- bot_runs 테이블 (봇 시작/중지/일일리포트 이력)
 CREATE TABLE IF NOT EXISTS bot_runs (
     id BIGSERIAL PRIMARY KEY,
-    event TEXT NOT NULL,               -- START / STOP
+    event TEXT NOT NULL,               -- START / STOP / REPORT
     dry_run BOOLEAN,
     interval_minutes INTEGER,
     threshold REAL,
+    detail TEXT,                       -- REPORT: BotReport JSON
     created_at TEXT NOT NULL
 );
 

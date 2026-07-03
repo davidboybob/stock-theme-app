@@ -25,6 +25,7 @@ class TradeSignal(BaseModel):
     executed: bool = False           # live 주문 실행 여부
     order_id: Optional[str] = None
     error: Optional[str] = None
+    blocked: Optional[str] = None    # 리스크 체크 차단 사유 (dry-run에서도 기록)
     created_at: str = Field(default_factory=_now_iso)
 
 
@@ -40,6 +41,9 @@ class BotStatus(BaseModel):
     last_run_result: Optional[str] = None
     signals_today: int = 0
     max_signals_per_day: int = 0
+    kill_switch: bool = False
+    kill_reason: Optional[str] = None
+    risk: Optional[dict] = None      # RiskManager.snapshot()
 
 
 class BotStartIn(BaseModel):
@@ -50,3 +54,22 @@ class BotStartIn(BaseModel):
 
 class BotModeIn(BaseModel):
     dry_run: bool
+
+
+class KillSwitchIn(BaseModel):
+    activate: bool
+    reason: Optional[str] = None
+
+
+class BotReport(BaseModel):
+    date: str
+    signals: int = 0
+    blocked: int = 0
+    executed: int = 0
+    failed: int = 0
+    dry_run_signals: int = 0
+    daily_order_amount: int = 0
+    kill_switch: bool = False
+    kill_reason: Optional[str] = None
+    last_run_at: Optional[str] = None
+    last_run_result: Optional[str] = None

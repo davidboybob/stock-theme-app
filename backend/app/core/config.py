@@ -22,6 +22,12 @@ class Settings(BaseSettings):
     bot_order_budget: int = 100000       # live 시 종목당 주문 예산 (원)
     bot_max_signals_per_day: int = 20
 
+    # 자동매매 안전장치 (Phase 4) — dry-run에서도 체크해 시그널에 차단 사유를 남긴다
+    bot_max_order_amount: int = 200000        # 주문 1건 금액 상한 (원)
+    bot_daily_max_order_amount: int = 500000  # 일일 주문 금액 합계 상한 (원)
+    bot_daily_loss_limit: int = 50000         # 계좌 일 손실 한도 (원) — 초과 시 자동 정지 (live 전용)
+    bot_max_consecutive_failures: int = 3     # 연속 주문 실패 시 자동 정지
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"

@@ -265,7 +265,19 @@ export interface TradeSignal {
   executed: boolean;
   order_id: string | null;
   error: string | null;
+  blocked: string | null;
   created_at: string;
+}
+
+export interface BotRisk {
+  kill_switch: boolean;
+  kill_reason: string | null;
+  consecutive_failures: number;
+  daily_order_amount: number;
+  daily_max_order_amount: number;
+  max_order_amount: number;
+  daily_loss_limit: number;
+  blocked_today: number;
 }
 
 export interface BotStatus {
@@ -280,6 +292,9 @@ export interface BotStatus {
   last_run_result: string | null;
   signals_today: number;
   max_signals_per_day: number;
+  kill_switch: boolean;
+  kill_reason: string | null;
+  risk: BotRisk | null;
 }
 
 export const fetchBotStatus = () =>
@@ -301,3 +316,25 @@ export const fetchBotSignals = (limit = 50) =>
   apiClient
     .get<TradeSignal[]>("/trading/signals", { params: { limit } })
     .then((r) => r.data);
+
+export const setKillSwitch = (activate: boolean, reason?: string) =>
+  apiClient
+    .post<BotStatus>("/trading/kill", { activate, reason })
+    .then((r) => r.data);
+
+export interface BotReport {
+  date: string;
+  signals: number;
+  blocked: number;
+  executed: number;
+  failed: number;
+  dry_run_signals: number;
+  daily_order_amount: number;
+  kill_switch: boolean;
+  kill_reason: string | null;
+  last_run_at: string | null;
+  last_run_result: string | null;
+}
+
+export const fetchBotReport = () =>
+  apiClient.get<BotReport>("/trading/report").then((r) => r.data);

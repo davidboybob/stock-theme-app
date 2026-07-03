@@ -10,7 +10,14 @@ from typing import List
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import get_settings
-from app.models.bot import BotModeIn, BotStartIn, BotStatus, TradeSignal
+from app.models.bot import (
+    BotModeIn,
+    BotReport,
+    BotStartIn,
+    BotStatus,
+    KillSwitchIn,
+    TradeSignal,
+)
 from app.services.trading.engine import get_bot_engine
 
 router = APIRouter(prefix="/trading", tags=["trading"])
@@ -54,3 +61,20 @@ async def set_mode(body: BotModeIn):
 @router.get("/signals", response_model=List[TradeSignal])
 async def get_signals(limit: int = Query(50, ge=1, le=200)):
     return get_bot_engine().signals(limit)
+
+
+@router.post("/kill", response_model=BotStatus)
+async def kill_switch(body: KillSwitchIn):
+    """kill switch — 활성화 시 모든 봇 주문 차단 (시그널 기록은 계속, 해제는 수동)."""
+    engine = get_bot_engine()
+    if body.activate:
+        engine.risk.activate_kill_switch(body.reason or "수동 kill switch")
+    else:
+        engine.risk.release_kill_switch()
+    return await engine.status()
+
+
+@router.get("/report", response_model=BotReport)
+async def get_report():
+    """오늘 봇 활동 요약 (시그널/차단/실행/실패, 주문 누적액, kill switch 상태)."""
+    return get_bot_engine().report()

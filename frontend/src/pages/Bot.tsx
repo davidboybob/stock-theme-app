@@ -6,6 +6,7 @@ import {
   startBot,
   stopBot,
   setBotMode,
+  setKillSwitch,
 } from "../api/client";
 import { useTradingAccount } from "../hooks/useTradingAccount";
 
@@ -62,6 +63,12 @@ export default function Bot() {
     onSuccess: invalidate,
   });
 
+  const kill = useMutation({
+    mutationFn: (activate: boolean) =>
+      setKillSwitch(activate, activate ? "사용자 수동 정지" : undefined),
+    onSuccess: invalidate,
+  });
+
   if (loading) return <div className="page"><p>확인 중...</p></div>;
   if (!available) {
     return (
@@ -105,7 +112,35 @@ export default function Bot() {
             <span>마지막 실행: {fmtTime(s.last_run_at)}</span>
             {s.last_run_result && <span> — {s.last_run_result}</span>}
           </div>
+          {s.risk && (
+            <div className="strength-counts" style={{ marginTop: 4 }}>
+              <span>
+                오늘 주문액 {s.risk.daily_order_amount.toLocaleString("ko-KR")}/
+                {s.risk.daily_max_order_amount.toLocaleString("ko-KR")}원
+              </span>
+              {" / "}
+              <span>건당 상한 {s.risk.max_order_amount.toLocaleString("ko-KR")}원</span>
+              {" / "}
+              <span>차단 {s.risk.blocked_today}건</span>
+              {" / "}
+              <span>연속실패 {s.risk.consecutive_failures}회</span>
+            </div>
+          )}
         </div>
+      )}
+
+      {s?.kill_switch && (
+        <p className="error-message">
+          🛑 KILL SWITCH 활성 — 모든 봇 주문이 차단됩니다 ({s.kill_reason})
+          <button
+            className="refresh-btn"
+            style={{ marginLeft: 12 }}
+            onClick={() => kill.mutate(false)}
+            disabled={kill.isPending}
+          >
+            해제
+          </button>
+        </p>
       )}
 
       <div className="page-header" style={{ gap: 12, flexWrap: "wrap" }}>
@@ -154,6 +189,18 @@ export default function Bot() {
             실주문 모드 {!s.live_allowed && "(dry-run 강제 — 환경변수 잠금)"}
           </label>
         )}
+
+        {s && !s.kill_switch && (
+          <button
+            className="refresh-btn"
+            style={{ color: "#c0392b" }}
+            onClick={() => kill.mutate(true)}
+            disabled={kill.isPending}
+            title="모든 봇 주문을 즉시 차단 (시그널 기록은 계속)"
+          >
+            🛑 긴급 주문차단
+          </button>
+        )}
       </div>
 
       {mode.isError && (
@@ -187,7 +234,13 @@ export default function Bot() {
                 <td>{sig.price != null ? sig.price.toLocaleString("ko-KR") : "-"}</td>
                 <td>{sig.quantity || "-"}</td>
                 <td>
-                  {sig.dry_run ? "dry-run" : sig.executed ? `주문됨(${sig.order_id})` : `실패: ${sig.error ?? "?"}`}
+                  {sig.blocked
+                    ? `차단: ${sig.blocked}`
+                    : sig.dry_run
+                      ? "dry-run"
+                      : sig.executed
+                        ? `주문됨(${sig.order_id})`
+                        : `실패: ${sig.error ?? "?"}`}
                 </td>
                 <td style={{ fontSize: "0.85em" }}>{sig.reason}</td>
               </tr>

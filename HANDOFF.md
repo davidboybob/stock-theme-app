@@ -33,6 +33,14 @@
 - 프론트: `pages/Bot.tsx`(상태 카드, 시작/중지, dry-run 토글, 시그널 테이블) + "봇" 네비
 - 검증: 스모크 전체 통과(시작→즉시 실행→"장 운영시간 아님 — 스킵", mode 403, 중지 200), tsc·vitest 13개 통과
 
+### Phase 4 — 안전장치 ✅ (2026-07-03)
+- `services/trading/risk.py` — RiskManager: 건당 상한(기본 20만원)·일일 주문액 상한(50만원)·일 손실 한도(5만원, live 전용 계좌 손익 기반)·연속 실패 3회 자동 kill switch. **dry-run에서도 체크해 시그널에 `blocked` 사유 기록** (실전 전 한도 검증용)
+- kill switch: 활성화 시 모든 봇 주문 차단(시그널 기록은 계속), 해제는 수동. `POST /api/trading/kill {activate, reason}`
+- `GET /api/trading/report` — 오늘 시그널/차단/실행/실패/주문누적액 요약. 봇 실행 중이면 15:35 KST에 REPORT가 bot_runs에 자동 기록 (detail 칼럼, JSON)
+- 엔진 통합: run_once에서 live 손실 한도 체크, _handle_signal에서 주문 전 리스크 체크, 주문 성공/실패를 리스크에 반영
+- Bot 페이지: 리스크 현황 라인(주문액/한도·차단·연속실패), 🛑 긴급 주문차단/해제 버튼, 시그널 테이블 차단 사유 표시
+- 검증: 한도 초과 시나리오 7종 통과(건당/일일/연속실패/kill 차단/해제/손실한도/엔진통합), kill·report API 스모크 통과, tsc·vitest 13개 통과
+
 ### 2026-07-03 추가 수정
 - **toss_client rate limiter 치명 버그 수정**: 토큰버킷 상한이 `min(rate, ...)`여서 rate<1인 ACCOUNT(0.8)는 토큰이 영원히 1이 안 됨 → `/api/account` 무한 대기. 상한을 `max(rate, 1)`로 교정. (이전 세션들의 "샌드박스라 검증 불가" 결론 중 일부는 사실 이 버그였음)
 - **실계좌 읽기 전용 검증 완료**: 계좌 1개(seq=1, BROKERAGE), 보유 7종목, 매수가능금액 정상 응답 — 0.3초. 주문 실행은 미실시(사용자 몫)
@@ -59,6 +67,7 @@
 
 ## 다음 단계 (로드맵)
 
-- **dry-run 운영**: 장중에 봇 페이지에서 시작 → 최소 1주일 시그널 품질 관찰 (Supabase 복구되면 trade_signals에 영속 축적)
-- **Phase 4 — 안전장치**: 일 손실 한도, 종목당/일일 주문 금액 상한, 연속 실패 자동 정지, kill switch API, 일일 리포트. 이후 `BOT_LIVE_TRADING=true` 전환 검토
+- **dry-run 운영**: 최소 1주일 시그널 품질 관찰 (⚠️ Supabase 복구 전엔 시그널이 메모리에만 남아 백엔드 재시작 시 소실 — Resume이 최우선)
 - SELL 시그널 로직 (현재 전략은 BUY만) — 보유종목 테마 하락 반전 시 매도 등
+- dry-run 검증 후 `BOT_LIVE_TRADING=true` 전환 검토 (한도 설정은 blocked 기록으로 사전 검증)
+- 수동 주문 실거래 테스트 (소액 1주 매수→취소)는 여전히 사용자 직접 몫
