@@ -16,11 +16,14 @@ const THEME_OPTIONS = [
   { id: "eco", name: "친환경/ESG" },
 ];
 
+type WsStatus = "connecting" | "connected" | "disconnected" | "error";
+
 export default function Alerts() {
   const queryClient = useQueryClient();
   const { toasts, show, remove } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
   const [wsMessages, setWsMessages] = useState<string[]>([]);
+  const [wsStatus, setWsStatus] = useState<WsStatus>("connecting");
   const [form, setForm] = useState<AlertCreate>({
     target_type: "theme",
     target_id: "ai",
@@ -63,13 +66,21 @@ export default function Alerts() {
   useEffect(() => {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
+    ws.onopen = () => setWsStatus("connected");
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      let data: { target_name: string; current_value: number; condition: string; threshold: number };
+      try {
+        data = JSON.parse(e.data as string);
+      } catch {
+        return;
+      }
       setWsMessages((prev) => [
         `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
         ...prev.slice(0, 19),
       ]);
     };
+    ws.onerror = () => setWsStatus("error");
+    ws.onclose = () => setWsStatus("disconnected");
     return () => ws.close();
   }, []);
 
@@ -183,6 +194,12 @@ export default function Alerts() {
       </div>
 
       <h2>실시간 알림 로그</h2>
+      <div className="ws-status-row">
+        {wsStatus === "connecting" && <span className="ws-badge ws-connecting">● 연결 중…</span>}
+        {wsStatus === "connected" && <span className="ws-badge ws-connected">● 연결됨</span>}
+        {wsStatus === "disconnected" && <span className="ws-badge ws-disconnected">● 연결 끊김</span>}
+        {wsStatus === "error" && <span className="ws-badge ws-error">● 연결 오류</span>}
+      </div>
       <div className="ws-log">
         {wsMessages.length === 0 && (
           <div className="empty">알림 대기 중...</div>
