@@ -437,6 +437,22 @@ body {
 }
 
 /* WS Log */
+.ws-status-row {
+  margin-bottom: 6px;
+}
+
+.ws-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 99px;
+}
+
+.ws-connecting { color: #a0aec0; }
+.ws-connected  { color: #68d391; }
+.ws-disconnected { color: #fc8181; }
+.ws-error      { color: #f6ad55; }
+
 .ws-log {
   background: #1a202c;
   border-radius: 8px;
