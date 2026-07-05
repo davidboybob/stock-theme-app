@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
+import { fetchStockDetail } from "../api/client";
 import type { StockDetail } from "../api/client";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 interface Props {
   code: string;
@@ -11,17 +10,21 @@ interface Props {
 export default function StockModal({ code, onClose }: Props) {
   const [data, setData] = useState<StockDetail | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   useEffect(() => {
     setLoading(true);
     setData(null);
-    fetch(`${API_BASE}/api/stocks/${code}/detail`)
-      .then((r) => r.json())
-      .then((d: StockDetail) => {
+    setError(false);
+    fetchStockDetail(code)
+      .then((d) => {
         setData(d);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch(() => {
+        setError(true);
+        setLoading(false);
+      });
   }, [code]);
 
   const isUp = (data?.change_rate ?? 0) >= 0;
@@ -99,7 +102,7 @@ export default function StockModal({ code, onClose }: Props) {
             </table>
           </>
         )}
-        {!loading && !data && (
+        {!loading && (error || !data) && (
           <div className="error">데이터를 불러올 수 없습니다.</div>
         )}
       </div>
