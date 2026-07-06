@@ -112,7 +112,7 @@ def unregister_websocket(ws) -> None:
 
 async def _broadcast(message: dict) -> None:
     dead = set()
-    for ws in _websocket_clients:
+    for ws in list(_websocket_clients):
         try:
             await ws.send_json(message)
         except Exception:

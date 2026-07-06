@@ -47,4 +47,6 @@ async def websocket_alerts(websocket: WebSocket):
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
+        pass
+    finally:
         alert_monitor.unregister_websocket(websocket)
