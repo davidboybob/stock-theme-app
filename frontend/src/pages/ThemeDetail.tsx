@@ -30,6 +30,7 @@ export default function ThemeDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [modalCode, setModalCode] = useState<string | null>(null);
+  const [historyPeriod, setHistoryPeriod] = useState<"1d" | "1w" | "1m">("1d");
 
   const { data, isLoading, isError } = useQuery({
     queryKey: ["theme", id],
@@ -39,8 +40,8 @@ export default function ThemeDetail() {
   });
 
   const { data: history } = useQuery({
-    queryKey: ["theme-history", id],
-    queryFn: () => fetchThemeHistory(id!),
+    queryKey: ["theme-history", id, historyPeriod],
+    queryFn: () => fetchThemeHistory(id!, historyPeriod),
     enabled: !!id,
     refetchInterval: 600000,
   });
@@ -58,10 +59,16 @@ export default function ThemeDetail() {
   const { strength } = data;
   const isUp = strength.avg_change_rate >= 0;
 
-  const historyChartData = history?.map((h) => ({
-    time: new Date(h.recorded_at).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" }),
-    rate: h.avg_change_rate,
-  }));
+  const historyChartData = history?.map((h) => {
+    const d = new Date(h.recorded_at);
+    const fmt: Intl.DateTimeFormatOptions =
+      historyPeriod === "1d"
+        ? { hour: "2-digit", minute: "2-digit" }
+        : historyPeriod === "1w"
+        ? { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }
+        : { month: "2-digit", day: "2-digit" };
+    return { time: d.toLocaleString("ko-KR", fmt), rate: h.avg_change_rate };
+  });
 
   const chartData = [...data.stock_prices]
     .sort((a, b) => b.change_rate - a.change_rate)
@@ -92,9 +99,26 @@ export default function ThemeDetail() {
         </div>
       </div>
 
+      {/* 히스토리 기간 선택 */}
+      <div style={{ display: "flex", gap: "6px", margin: "12px 0 4px" }}>
+        {(["1d", "1w", "1m"] as const).map((p) => (
+          <button
+            key={p}
+            onClick={() => setHistoryPeriod(p)}
+            style={{
+              padding: "4px 12px", borderRadius: "6px", border: "1px solid var(--border)",
+              cursor: "pointer", fontSize: "0.8rem",
+              background: historyPeriod === p ? "#3b82f6" : "transparent",
+              color: historyPeriod === p ? "#fff" : "inherit",
+              fontWeight: historyPeriod === p ? 700 : 400,
+            }}
+          >{{ "1d": "1일", "1w": "1주", "1m": "1개월" }[p]}</button>
+        ))}
+      </div>
+
       {historyChartData && historyChartData.length >= 2 ? (
         <div className="history-chart">
-          <h3>당일 테마 강도 추이</h3>
+          <h3>테마 강도 추이</h3>
           <ResponsiveContainer width="100%" height={200}>
             <LineChart data={historyChartData} margin={{ left: 10, right: 20 }}>
               <CartesianGrid strokeDasharray="3 3" />

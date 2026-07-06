@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from fastapi import FastAPI
+import os
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
-from app.api.routes import themes, stocks, alerts
+from app.api.routes import themes, stocks, alerts, trading
 from app.services.alert_monitor import start_scheduler, stop_scheduler
 from app.db import init_db
 
@@ -23,8 +25,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-import os
-
 ALLOWED_ORIGINS = os.getenv(
     "ALLOWED_ORIGINS",
     "http://localhost:5173,http://localhost:3000"
@@ -38,11 +38,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    return JSONResponse(
+        status_code=500,
+        content={"detail": str(exc) or "Internal server error"},
+    )
+
+
 app.include_router(themes.router, prefix="/api")
 app.include_router(stocks.router, prefix="/api")
 app.include_router(alerts.router, prefix="/api")
+app.include_router(trading.router, prefix="/api")
 
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok"}
+    supabase_ok = (
+        os.getenv("SUPABASE_URL", "").startswith("https://")
+        and "placeholder" not in os.getenv("SUPABASE_URL", "")
+    )
+    return {
+        "status": "ok",
+        "supabase": "connected" if supabase_ok else "not configured",
+        "version": "1.0.0",
+    }
