@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Literal, Optional
 from app.models.stock import StockPrice
 
 
@@ -34,19 +34,19 @@ class ThemeDetail(BaseModel):
 
 class Alert(BaseModel):
     id: str
-    target_type: str  # "theme" or "stock"
+    target_type: Literal["theme", "stock"]
     target_id: str
     target_name: str
-    condition: str  # "above" or "below"
+    condition: Literal["above", "below"]
     threshold: float
     is_active: bool = True
     created_at: str
 
 
 class AlertCreate(BaseModel):
-    target_type: str
+    target_type: Literal["theme", "stock"]
     target_id: str
-    condition: str
+    condition: Literal["above", "below"]
     threshold: float
 
 
