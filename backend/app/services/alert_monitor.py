@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 import asyncio
 from datetime import datetime
@@ -155,7 +156,7 @@ async def _check_alerts() -> None:
                 )
                 await _broadcast(notification.model_dump())
         except Exception:
-            pass
+            logging.exception("알림 체크 실패 (alert_id=%s)", alert.id)
 
 
 async def _snapshot_themes() -> None:
@@ -178,7 +179,7 @@ async def _snapshot_themes() -> None:
         ]
         await asyncio.to_thread(lambda: sb.table("theme_history").insert(rows).execute())
     except Exception:
-        pass
+        logging.exception("테마 스냅샷 저장 실패")
 
 
 def start_scheduler() -> None:
