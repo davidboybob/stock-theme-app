@@ -64,7 +64,8 @@ def main() -> None:
         stocks = theme["stocks"]
         print(f"[{theme_name}]")
 
-        for code in stocks:
+        for item in stocks:
+            code = item["code"]
             result = validate_code(code)
             if result is not None:
                 name, price = result
