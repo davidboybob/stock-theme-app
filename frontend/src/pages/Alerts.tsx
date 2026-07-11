@@ -64,9 +64,25 @@ export default function Alerts() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      try {
+        const data = JSON.parse(e.data) as {
+          target_name: string;
+          current_value: number;
+          condition: string;
+          threshold: number;
+        };
+        const value = data.current_value != null ? data.current_value.toFixed(2) : "?";
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${value}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+          ...prev.slice(0, 19),
+        ]);
+      } catch {
+        // 파싱 실패 시 무시 (서버 핑·빈 프레임 등)
+      }
+    };
+    ws.onerror = () => {
       setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+        `[${new Date().toLocaleTimeString()}] ⚠️ 알림 서버 연결 실패 — 백엔드가 실행 중인지 확인하세요.`,
         ...prev.slice(0, 19),
       ]);
     };
