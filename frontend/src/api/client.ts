@@ -120,5 +120,13 @@ export const fetchAlertHistory = () =>
 export const fetchThemeHistory = (id: string, period = "1d") =>
   apiClient.get<ThemeHistory[]>(`/themes/${id}/history`, { params: { period } }).then((r) => r.data);
 
+export interface StockSearchResult {
+  name: string;
+  code: string;
+}
+
+export const searchStocks = (q: string) =>
+  apiClient.get<StockSearchResult[]>("/stocks/search", { params: { q } }).then((r) => r.data);
+
 export const WS_URL =
   (import.meta.env.VITE_WS_URL || "ws://localhost:8000") + "/api/ws/alerts";
