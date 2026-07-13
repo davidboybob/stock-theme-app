@@ -1,19 +1,14 @@
 import { useState, useEffect, useRef } from "react";
-
-interface SearchResult {
-  name: string;
-  code: string;
-}
+import { searchStocks } from "../api/client";
+import type { StockSearchResult } from "../api/client";
 
 interface Props {
   onSelect: (code: string) => void;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 export default function SearchBar({ onSelect }: Props) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [results, setResults] = useState<StockSearchResult[]>([]);
   const [open, setOpen] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -26,10 +21,7 @@ export default function SearchBar({ onSelect }: Props) {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(
-          `${API_BASE}/api/stocks/search?q=${encodeURIComponent(query)}`
-        );
-        const data: SearchResult[] = await res.json();
+        const data = await searchStocks(query);
         setResults(data);
         setOpen(data.length > 0);
       } catch {
