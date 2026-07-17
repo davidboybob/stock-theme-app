@@ -88,7 +88,7 @@ export default function Alerts() {
           <select
             value={form.target_type}
             onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
+              setForm({ ...form, target_type: e.target.value, target_id: e.target.value === "theme" ? "ai" : "" })
             }
           >
             <option value="theme">테마</option>
