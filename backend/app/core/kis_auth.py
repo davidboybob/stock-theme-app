@@ -24,7 +24,7 @@ async def get_access_token() -> str:
             "appsecret": settings.kis_app_secret,
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, json=payload)
             response.raise_for_status()
             data = response.json()
