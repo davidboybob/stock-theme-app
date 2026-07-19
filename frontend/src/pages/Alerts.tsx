@@ -64,11 +64,15 @@ export default function Alerts() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
-        ...prev.slice(0, 19),
-      ]);
+      try {
+        const data = JSON.parse(e.data);
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+          ...prev.slice(0, 19),
+        ]);
+      } catch {
+        // 비정상 WebSocket 메시지 무시
+      }
     };
     return () => ws.close();
   }, []);
