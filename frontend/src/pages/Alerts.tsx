@@ -16,10 +16,17 @@ const THEME_OPTIONS = [
   { id: "eco", name: "친환경/ESG" },
 ];
 
+type WsStatus = "connecting" | "connected" | "disconnected";
+
+const WS_RECONNECT_DELAY = 3000;
+
 export default function Alerts() {
   const queryClient = useQueryClient();
   const { toasts, show, remove } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
+  const reconnectRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+  const [wsStatus, setWsStatus] = useState<WsStatus>("connecting");
   const [wsMessages, setWsMessages] = useState<string[]>([]);
   const [form, setForm] = useState<AlertCreate>({
     target_type: "theme",
@@ -39,6 +46,7 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 추가되었습니다.", "success");
     },
+    onError: () => show("알림 추가 실패. 다시 시도하세요.", "error"),
   });
 
   const deleteMutation = useMutation({
@@ -47,11 +55,13 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 삭제되었습니다.", "info");
     },
+    onError: () => show("알림 삭제 실패. 다시 시도하세요.", "error"),
   });
 
   const toggleMutation = useMutation({
     mutationFn: toggleAlert,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onError: () => show("상태 변경 실패. 다시 시도하세요.", "error"),
   });
 
   const { data: history } = useQuery({
@@ -61,16 +71,48 @@ export default function Alerts() {
   });
 
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
-        ...prev.slice(0, 19),
-      ]);
+    unmountedRef.current = false;
+
+    const connect = () => {
+      setWsStatus("connecting");
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => setWsStatus("connected");
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data) as {
+            target_name: string;
+            current_value: number;
+            condition: string;
+            threshold: number;
+          };
+          setWsMessages((prev) => [
+            `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+            ...prev.slice(0, 19),
+          ]);
+        } catch {
+          // 예상치 못한 메시지 형식 무시
+        }
+      };
+
+      ws.onclose = () => {
+        if (unmountedRef.current) return;
+        setWsStatus("disconnected");
+        reconnectRef.current = setTimeout(connect, WS_RECONNECT_DELAY);
+      };
+
+      ws.onerror = () => ws.close(); // onclose가 재연결을 처리함
     };
-    return () => ws.close();
+
+    connect();
+
+    return () => {
+      unmountedRef.current = true;
+      if (reconnectRef.current) clearTimeout(reconnectRef.current);
+      wsRef.current?.close();
+    };
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -139,10 +181,12 @@ export default function Alerts() {
           <input
             type="number"
             step="0.1"
+            min="0"
             value={form.threshold}
-            onChange={(e) =>
-              setForm({ ...form, threshold: parseFloat(e.target.value) })
-            }
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              setForm({ ...form, threshold: isNaN(v) ? 0 : v });
+            }}
           />
         </div>
 
@@ -182,7 +226,21 @@ export default function Alerts() {
         ))}
       </div>
 
-      <h2>실시간 알림 로그</h2>
+      <h2>
+        실시간 알림 로그{" "}
+        <span
+          className={`ws-status-badge ${wsStatus}`}
+          title={
+            wsStatus === "connected"
+              ? "서버와 연결됨"
+              : wsStatus === "connecting"
+                ? "연결 중..."
+                : "연결 끊김 — 재연결 중..."
+          }
+        >
+          {wsStatus === "connected" ? "● 연결됨" : wsStatus === "connecting" ? "○ 연결 중…" : "○ 재연결 중…"}
+        </span>
+      </h2>
       <div className="ws-log">
         {wsMessages.length === 0 && (
           <div className="empty">알림 대기 중...</div>
