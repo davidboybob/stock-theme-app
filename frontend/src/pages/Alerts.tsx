@@ -87,9 +87,14 @@ export default function Alerts() {
           <label>대상 유형</label>
           <select
             value={form.target_type}
-            onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
-            }
+            onChange={(e) => {
+              const type = e.target.value;
+              setForm({
+                ...form,
+                target_type: type,
+                target_id: type === "theme" ? THEME_OPTIONS[0].id : "",
+              });
+            }}
           >
             <option value="theme">테마</option>
             <option value="stock">종목</option>
