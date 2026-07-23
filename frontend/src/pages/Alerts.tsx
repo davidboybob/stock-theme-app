@@ -75,6 +75,10 @@ export default function Alerts() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isNaN(form.threshold)) {
+      show("임계값을 입력해주세요.", "error");
+      return;
+    }
     createMutation.mutate(form);
   };
 
@@ -139,9 +143,9 @@ export default function Alerts() {
           <input
             type="number"
             step="0.1"
-            value={form.threshold}
+            value={isNaN(form.threshold) ? "" : form.threshold}
             onChange={(e) =>
-              setForm({ ...form, threshold: parseFloat(e.target.value) })
+              setForm({ ...form, threshold: e.target.valueAsNumber })
             }
           />
         </div>
