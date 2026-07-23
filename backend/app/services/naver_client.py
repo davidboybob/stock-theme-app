@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 import httpx
 from tenacity import AsyncRetrying, stop_after_attempt, wait_exponential, retry_if_exception_type
 from app.core.config import get_settings
 from app.models.stock import StockPrice, IndexPrice
+
+logger = logging.getLogger(__name__)
 
 _semaphore = asyncio.Semaphore(10)
 
@@ -176,7 +179,7 @@ class NaverClient:
                 if jo_val > 0 or eok_val > 0:
                     result["market_cap"] = (jo_val * 10_000 + eok_val) * 100_000_000
         except Exception:
-            pass
+            logger.exception("get_stock_detail 파싱 실패 (code=%s)", code)
 
         return result
 
