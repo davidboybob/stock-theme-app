@@ -20,7 +20,9 @@ export default function Alerts() {
   const queryClient = useQueryClient();
   const { toasts, show, remove } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
+  const wsRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [wsMessages, setWsMessages] = useState<string[]>([]);
+  const [wsConnected, setWsConnected] = useState(false);
   const [form, setForm] = useState<AlertCreate>({
     target_type: "theme",
     target_id: "ai",
@@ -61,16 +63,58 @@ export default function Alerts() {
   });
 
   useEffect(() => {
-    const ws = new WebSocket(WS_URL);
-    wsRef.current = ws;
-    ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
-        ...prev.slice(0, 19),
-      ]);
+    let destroyed = false;
+    let retryDelay = 2000;
+
+    const connect = () => {
+      if (destroyed) return;
+      const ws = new WebSocket(WS_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        setWsConnected(true);
+        retryDelay = 2000;
+      };
+
+      ws.onmessage = (e) => {
+        try {
+          const data = JSON.parse(e.data) as {
+            target_name: string;
+            current_value: number;
+            condition: string;
+            threshold: number;
+          };
+          setWsMessages((prev) => [
+            `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+            ...prev.slice(0, 19),
+          ]);
+        } catch {
+          // malformed JSON — skip
+        }
+      };
+
+      ws.onerror = () => {
+        setWsConnected(false);
+      };
+
+      ws.onclose = () => {
+        setWsConnected(false);
+        if (!destroyed) {
+          wsRetryRef.current = setTimeout(() => {
+            retryDelay = Math.min(retryDelay * 2, 30000);
+            connect();
+          }, retryDelay);
+        }
+      };
     };
-    return () => ws.close();
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      if (wsRetryRef.current) clearTimeout(wsRetryRef.current);
+      wsRef.current?.close();
+    };
   }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -182,7 +226,12 @@ export default function Alerts() {
         ))}
       </div>
 
-      <h2>실시간 알림 로그</h2>
+      <h2>
+        실시간 알림 로그{" "}
+        <span className={`ws-badge ${wsConnected ? "ws-badge--on" : "ws-badge--off"}`}>
+          {wsConnected ? "● 연결됨" : "○ 재연결 중…"}
+        </span>
+      </h2>
       <div className="ws-log">
         {wsMessages.length === 0 && (
           <div className="empty">알림 대기 중...</div>
