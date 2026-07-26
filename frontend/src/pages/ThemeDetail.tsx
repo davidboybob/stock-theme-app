@@ -145,8 +145,7 @@ export default function ThemeDetail() {
                   <LabelList
                     dataKey="value"
                     position="right"
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(v: any) => {
+                    formatter={(v: unknown) => {
                       if (v == null) return "";
                       const n = Number(v);
                       return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;

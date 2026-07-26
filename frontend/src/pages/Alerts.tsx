@@ -70,6 +70,20 @@ export default function Alerts() {
         ...prev.slice(0, 19),
       ]);
     };
+    ws.onerror = () => {
+      setWsMessages((prev) => [
+        `[${new Date().toLocaleTimeString()}] WebSocket 연결 오류 — 서버 상태를 확인하세요.`,
+        ...prev.slice(0, 19),
+      ]);
+    };
+    ws.onclose = (e) => {
+      if (!e.wasClean) {
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] WebSocket 연결이 끊어졌습니다. 새로고침하면 재연결됩니다.`,
+          ...prev.slice(0, 19),
+        ]);
+      }
+    };
     return () => ws.close();
   }, []);
 
