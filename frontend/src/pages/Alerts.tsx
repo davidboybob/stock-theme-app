@@ -39,6 +39,9 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 추가되었습니다.", "success");
     },
+    onError: () => {
+      show("알림 추가에 실패했습니다.", "error");
+    },
   });
 
   const deleteMutation = useMutation({
@@ -46,6 +49,9 @@ export default function Alerts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 삭제되었습니다.", "info");
+    },
+    onError: () => {
+      show("알림 삭제에 실패했습니다.", "error");
     },
   });
 
@@ -88,7 +94,7 @@ export default function Alerts() {
           <select
             value={form.target_type}
             onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
+              setForm({ ...form, target_type: e.target.value, target_id: e.target.value === "theme" ? "ai" : "" })
             }
           >
             <option value="theme">테마</option>
