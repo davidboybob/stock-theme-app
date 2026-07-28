@@ -64,14 +64,16 @@ def main() -> None:
         stocks = theme["stocks"]
         print(f"[{theme_name}]")
 
-        for code in stocks:
+        for stock in stocks:
+            code = stock["code"]
+            stock_name = stock.get("name", code)
             result = validate_code(code)
             if result is not None:
-                name, price = result
-                print(f"  ✅ {code} ({name}) — 현재가: {format_price(price)}")
+                api_name, price = result
+                print(f"  ✅ {code} ({api_name or stock_name}) — 현재가: {format_price(price)}")
                 total_valid += 1
             else:
-                print(f"  ❌ {code} — 응답 없음")
+                print(f"  ❌ {code} ({stock_name}) — 응답 없음")
                 total_invalid += 1
 
         print()
