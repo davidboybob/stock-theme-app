@@ -82,7 +82,7 @@ export default function Dashboard() {
 
       {isError && (
         <div className="error">
-          데이터 조회 실패. API 키 설정 및 서버 상태를 확인하세요.
+          데이터 조회 실패. 서버 연결에 실패했습니다. 잠시 후 다시 시도하세요.
         </div>
       )}
 
