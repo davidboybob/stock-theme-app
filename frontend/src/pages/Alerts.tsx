@@ -39,6 +39,9 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 추가되었습니다.", "success");
     },
+    onError: () => {
+      show("알림 추가에 실패했습니다.", "error");
+    },
   });
 
   const deleteMutation = useMutation({
@@ -47,11 +50,17 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 삭제되었습니다.", "info");
     },
+    onError: () => {
+      show("알림 삭제에 실패했습니다.", "error");
+    },
   });
 
   const toggleMutation = useMutation({
     mutationFn: toggleAlert,
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["alerts"] }),
+    onError: () => {
+      show("알림 상태 변경에 실패했습니다.", "error");
+    },
   });
 
   const { data: history } = useQuery({
