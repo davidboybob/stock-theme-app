@@ -1,7 +1,5 @@
 import { useEffect, useState } from "react";
-import type { StockDetail } from "../api/client";
-
-const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+import { fetchStockDetail, type StockDetail } from "../api/client";
 
 interface Props {
   code: string;
@@ -15,9 +13,8 @@ export default function StockModal({ code, onClose }: Props) {
   useEffect(() => {
     setLoading(true);
     setData(null);
-    fetch(`${API_BASE}/api/stocks/${code}/detail`)
-      .then((r) => r.json())
-      .then((d: StockDetail) => {
+    fetchStockDetail(code)
+      .then((d) => {
         setData(d);
         setLoading(false);
       })
