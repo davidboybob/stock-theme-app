@@ -53,21 +53,24 @@ export interface IndexPrice {
   change_rate: number;
 }
 
+export type AlertTargetType = "theme" | "stock";
+export type AlertCondition = "above" | "below";
+
 export interface Alert {
   id: string;
-  target_type: string;
+  target_type: AlertTargetType;
   target_id: string;
   target_name: string;
-  condition: string;
+  condition: AlertCondition;
   threshold: number;
   is_active: boolean;
   created_at: string;
 }
 
 export interface AlertCreate {
-  target_type: string;
+  target_type: AlertTargetType;
   target_id: string;
-  condition: string;
+  condition: AlertCondition;
   threshold: number;
 }
 
@@ -110,7 +113,7 @@ export interface AlertHistory {
   target_name: string;
   current_value: number;
   threshold: number;
-  condition: string;
+  condition: AlertCondition;
   triggered_at: string;
 }
 
