@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchAlerts, createAlert, deleteAlert, toggleAlert, fetchAlertHistory, WS_URL } from "../api/client";
-import type { AlertCreate } from "../api/client";
+import type { AlertCreate, AlertTargetType, AlertCondition } from "../api/client";
 import Toast from "../components/Toast";
 import { useToast } from "../hooks/useToast";
 
@@ -88,7 +88,7 @@ export default function Alerts() {
           <select
             value={form.target_type}
             onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
+              setForm({ ...form, target_type: e.target.value as AlertTargetType, target_id: "ai" })
             }
           >
             <option value="theme">테마</option>
@@ -127,7 +127,7 @@ export default function Alerts() {
           <label>조건</label>
           <select
             value={form.condition}
-            onChange={(e) => setForm({ ...form, condition: e.target.value })}
+            onChange={(e) => setForm({ ...form, condition: e.target.value as AlertCondition })}
           >
             <option value="above">이상 (초과)</option>
             <option value="below">이하 (미만)</option>
