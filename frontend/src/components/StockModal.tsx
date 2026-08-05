@@ -16,7 +16,10 @@ export default function StockModal({ code, onClose }: Props) {
     setLoading(true);
     setData(null);
     fetch(`${API_BASE}/api/stocks/${code}/detail`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(r.statusText);
+        return r.json();
+      })
       .then((d: StockDetail) => {
         setData(d);
         setLoading(false);
