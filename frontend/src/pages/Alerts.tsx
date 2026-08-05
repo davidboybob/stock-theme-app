@@ -64,11 +64,15 @@ export default function Alerts() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
-        ...prev.slice(0, 19),
-      ]);
+      try {
+        const data = JSON.parse(e.data) as { target_name: string; current_value: number; condition: string; threshold: number };
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+          ...prev.slice(0, 19),
+        ]);
+      } catch {
+        // 잘못된 형식의 메시지 무시
+      }
     };
     return () => ws.close();
   }, []);
@@ -88,7 +92,7 @@ export default function Alerts() {
           <select
             value={form.target_type}
             onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
+              setForm({ ...form, target_type: e.target.value, target_id: e.target.value === "theme" ? "ai" : "" })
             }
           >
             <option value="theme">테마</option>
@@ -141,7 +145,7 @@ export default function Alerts() {
             step="0.1"
             value={form.threshold}
             onChange={(e) =>
-              setForm({ ...form, threshold: parseFloat(e.target.value) })
+              setForm({ ...form, threshold: parseFloat(e.target.value) || 0 })
             }
           />
         </div>
