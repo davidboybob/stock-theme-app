@@ -24,7 +24,7 @@ export default function Dashboard() {
   const [filterTab, setFilterTab] = useState<FilterTab>("all");
   const { isFavorite, toggle } = useFavorites();
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const { data, isLoading, isError, refetch, dataUpdatedAt } = useQuery({
     queryKey: ["themes"],
     queryFn: fetchThemes,
     refetchInterval: 30000,
@@ -63,6 +63,16 @@ export default function Dashboard() {
         <button className="refresh-btn" onClick={() => refetch()}>
           새로고침
         </button>
+        {dataUpdatedAt > 0 && (
+          <span style={{ fontSize: "11px", color: "var(--text-secondary)", whiteSpace: "nowrap" }}>
+            {new Date(dataUpdatedAt).toLocaleTimeString("ko-KR", {
+              hour: "2-digit",
+              minute: "2-digit",
+              second: "2-digit",
+            })}{" "}
+            갱신
+          </span>
+        )}
       </div>
 
       <div className="filter-tabs">
