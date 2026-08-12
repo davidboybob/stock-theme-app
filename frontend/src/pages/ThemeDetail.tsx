@@ -23,7 +23,7 @@ import {
 const getPosition = (stock: StockPrice): number => {
   const range = stock.high_price - stock.low_price;
   if (range === 0) return 50;
-  return ((stock.current_price - stock.low_price) / range) * 100;
+  return Math.max(0, Math.min(100, ((stock.current_price - stock.low_price) / range) * 100));
 };
 
 export default function ThemeDetail() {
