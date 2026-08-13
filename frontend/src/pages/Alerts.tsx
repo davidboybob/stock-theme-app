@@ -21,6 +21,7 @@ export default function Alerts() {
   const { toasts, show, remove } = useToast();
   const wsRef = useRef<WebSocket | null>(null);
   const [wsMessages, setWsMessages] = useState<string[]>([]);
+  const [wsError, setWsError] = useState(false);
   const [form, setForm] = useState<AlertCreate>({
     target_type: "theme",
     target_id: "ai",
@@ -39,6 +40,7 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 추가되었습니다.", "success");
     },
+    onError: (err: Error) => show(`알림 추가 실패: ${err.message}`, "error"),
   });
 
   const deleteMutation = useMutation({
@@ -47,6 +49,7 @@ export default function Alerts() {
       queryClient.invalidateQueries({ queryKey: ["alerts"] });
       show("알림이 삭제되었습니다.", "info");
     },
+    onError: (err: Error) => show(`알림 삭제 실패: ${err.message}`, "error"),
   });
 
   const toggleMutation = useMutation({
@@ -70,6 +73,7 @@ export default function Alerts() {
         ...prev.slice(0, 19),
       ]);
     };
+    ws.onerror = () => setWsError(true);
     return () => ws.close();
   }, []);
 
@@ -140,9 +144,10 @@ export default function Alerts() {
             type="number"
             step="0.1"
             value={form.threshold}
-            onChange={(e) =>
-              setForm({ ...form, threshold: parseFloat(e.target.value) })
-            }
+            onChange={(e) => {
+              const parsed = parseFloat(e.target.value);
+              setForm({ ...form, threshold: isNaN(parsed) ? form.threshold : parsed });
+            }}
           />
         </div>
 
@@ -184,7 +189,10 @@ export default function Alerts() {
 
       <h2>실시간 알림 로그</h2>
       <div className="ws-log">
-        {wsMessages.length === 0 && (
+        {wsError && (
+          <div className="empty">WebSocket 연결 실패 — 서버가 실행 중인지 확인하세요.</div>
+        )}
+        {!wsError && wsMessages.length === 0 && (
           <div className="empty">알림 대기 중...</div>
         )}
         {wsMessages.map((msg, i) => (
