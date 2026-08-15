@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Set, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+logger = logging.getLogger(__name__)
 
 from app.db import get_supabase
 from app.models.theme import Alert, AlertCreate, AlertTriggered
@@ -155,7 +158,7 @@ async def _check_alerts() -> None:
                 )
                 await _broadcast(notification.model_dump())
         except Exception:
-            pass
+            logger.exception("알림 체크 실패 (alert_id=%s, target=%s)", alert.id, alert.target_id)
 
 
 async def _snapshot_themes() -> None:
@@ -178,7 +181,7 @@ async def _snapshot_themes() -> None:
         ]
         await asyncio.to_thread(lambda: sb.table("theme_history").insert(rows).execute())
     except Exception:
-        pass
+        logger.exception("테마 스냅샷 저장 실패")
 
 
 def start_scheduler() -> None:
