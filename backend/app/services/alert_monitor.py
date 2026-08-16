@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Set, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -154,8 +155,8 @@ async def _check_alerts() -> None:
                     alert.threshold, alert.condition, notification.triggered_at,
                 )
                 await _broadcast(notification.model_dump())
-        except Exception:
-            pass
+        except Exception as e:
+            logging.warning("알림 체크 오류 (alert_id=%s): %s", alert.id, e)
 
 
 async def _snapshot_themes() -> None:
@@ -177,8 +178,8 @@ async def _snapshot_themes() -> None:
             for s in strengths
         ]
         await asyncio.to_thread(lambda: sb.table("theme_history").insert(rows).execute())
-    except Exception:
-        pass
+    except Exception as e:
+        logging.warning("테마 스냅샷 오류: %s", e)
 
 
 def start_scheduler() -> None:
