@@ -64,11 +64,34 @@ export default function Alerts() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      try {
+        const data = JSON.parse(e.data) as {
+          target_name: string;
+          current_value: number;
+          condition: string;
+          threshold: number;
+        };
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+          ...prev.slice(0, 19),
+        ]);
+      } catch {
+        // 잘못된 JSON 메시지 무시
+      }
+    };
+    ws.onerror = () => {
       setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+        `[${new Date().toLocaleTimeString()}] 서버 연결 오류`,
         ...prev.slice(0, 19),
       ]);
+    };
+    ws.onclose = (e) => {
+      if (!e.wasClean) {
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] 연결이 끊어졌습니다`,
+          ...prev.slice(0, 19),
+        ]);
+      }
     };
     return () => ws.close();
   }, []);
