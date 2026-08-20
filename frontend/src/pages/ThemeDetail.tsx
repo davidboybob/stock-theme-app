@@ -136,17 +136,16 @@ export default function ThemeDetail() {
                   ]}
                 />
                 <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                  {chartData.map((entry, i) => (
+                  {chartData.map((entry) => (
                     <Cell
-                      key={i}
+                      key={entry.code}
                       fill={entry.value >= 0 ? "#c0392b" : "#2980b9"}
                     />
                   ))}
                   <LabelList
                     dataKey="value"
                     position="right"
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    formatter={(v: any) => {
+                    formatter={(v: unknown) => {
                       if (v == null) return "";
                       const n = Number(v);
                       return `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
