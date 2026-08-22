@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
 from app.models.theme import Alert, AlertCreate
 from app.services import alert_monitor
+from app.core.security import verify_alert_api_key
 
 router = APIRouter()
 
@@ -19,19 +20,19 @@ async def list_alerts():
     return await alert_monitor.get_alerts()
 
 
-@router.post("/alerts", response_model=Alert)
+@router.post("/alerts", response_model=Alert, dependencies=[Depends(verify_alert_api_key)])
 async def add_alert(data: AlertCreate):
     return await alert_monitor.create_alert(data)
 
 
-@router.delete("/alerts/{alert_id}", status_code=204)
+@router.delete("/alerts/{alert_id}", status_code=204, dependencies=[Depends(verify_alert_api_key)])
 async def remove_alert(alert_id: str):
     deleted = await alert_monitor.delete_alert(alert_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Alert not found")
 
 
-@router.patch("/alerts/{alert_id}", response_model=Alert)
+@router.patch("/alerts/{alert_id}", response_model=Alert, dependencies=[Depends(verify_alert_api_key)])
 async def toggle_alert_endpoint(alert_id: str):
     result = await alert_monitor.toggle_alert(alert_id)
     if not result:

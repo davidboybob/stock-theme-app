@@ -95,14 +95,18 @@ export const fetchIndices = () =>
 export const fetchAlerts = () =>
   apiClient.get<Alert[]>("/alerts").then((r) => r.data);
 
+const alertAuthHeaders = {
+  headers: { "X-API-Key": import.meta.env.VITE_ALERT_API_KEY || "" },
+};
+
 export const createAlert = (data: AlertCreate) =>
-  apiClient.post<Alert>("/alerts", data).then((r) => r.data);
+  apiClient.post<Alert>("/alerts", data, alertAuthHeaders).then((r) => r.data);
 
 export const deleteAlert = (id: string) =>
-  apiClient.delete(`/alerts/${id}`).then((r) => r.data);
+  apiClient.delete(`/alerts/${id}`, alertAuthHeaders).then((r) => r.data);
 
 export const toggleAlert = (id: string) =>
-  apiClient.patch<Alert>(`/alerts/${id}`).then((r) => r.data);
+  apiClient.patch<Alert>(`/alerts/${id}`, undefined, alertAuthHeaders).then((r) => r.data);
 
 export interface AlertHistory {
   id: number;

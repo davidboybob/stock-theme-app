@@ -1,10 +1,12 @@
 from pydantic_settings import BaseSettings
 from functools import lru_cache
+from typing import Optional
 
 
 class Settings(BaseSettings):
     naver_base_url: str = "https://polling.finance.naver.com"
     request_timeout: float = 10.0
+    alert_api_key: Optional[str] = None
 
     class Config:
         env_file = ".env"
