@@ -64,9 +64,19 @@ export default function Alerts() {
     const ws = new WebSocket(WS_URL);
     wsRef.current = ws;
     ws.onmessage = (e) => {
-      const data = JSON.parse(e.data);
+      try {
+        const data = JSON.parse(e.data);
+        setWsMessages((prev) => [
+          `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+          ...prev.slice(0, 19),
+        ]);
+      } catch {
+        // 비정상 메시지 무시
+      }
+    };
+    ws.onerror = () => {
       setWsMessages((prev) => [
-        `[${new Date().toLocaleTimeString()}] ${data.target_name}: ${data.current_value.toFixed(2)}% (임계값 ${data.condition === "above" ? "초과" : "미만"} ${data.threshold}%)`,
+        `[${new Date().toLocaleTimeString()}] WebSocket 연결 오류`,
         ...prev.slice(0, 19),
       ]);
     };
@@ -87,9 +97,10 @@ export default function Alerts() {
           <label>대상 유형</label>
           <select
             value={form.target_type}
-            onChange={(e) =>
-              setForm({ ...form, target_type: e.target.value, target_id: "ai" })
-            }
+            onChange={(e) => {
+              const newType = e.target.value;
+              setForm({ ...form, target_type: newType, target_id: newType === "theme" ? "ai" : "" });
+            }}
           >
             <option value="theme">테마</option>
             <option value="stock">종목</option>
