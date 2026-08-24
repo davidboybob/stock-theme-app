@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Set, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -78,8 +79,15 @@ async def get_alerts() -> List[Alert]:
 
 
 async def create_alert(data: AlertCreate) -> Alert:
-    theme = get_theme_by_id(data.target_id)
-    target_name = theme.name if theme else data.target_id
+    if data.target_type == "stock":
+        try:
+            stock = await kis_client.get_stock_price(data.target_id)
+            target_name = stock.name
+        except Exception:
+            target_name = data.target_id
+    else:
+        theme = get_theme_by_id(data.target_id)
+        target_name = theme.name if theme else data.target_id
     alert = Alert(
         id=str(uuid.uuid4()),
         target_type=data.target_type,
@@ -155,7 +163,7 @@ async def _check_alerts() -> None:
                 )
                 await _broadcast(notification.model_dump())
         except Exception:
-            pass
+            logging.exception("알림 체크 중 오류 (alert_id=%s)", alert.id)
 
 
 async def _snapshot_themes() -> None:
@@ -178,7 +186,7 @@ async def _snapshot_themes() -> None:
         ]
         await asyncio.to_thread(lambda: sb.table("theme_history").insert(rows).execute())
     except Exception:
-        pass
+        logging.exception("테마 스냅샷 중 오류")
 
 
 def start_scheduler() -> None:

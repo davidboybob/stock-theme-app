@@ -28,7 +28,10 @@ async def _yahoo_index_price(index_code: str) -> IndexPrice:
             headers={"User-Agent": "Mozilla/5.0"},
         )
         resp.raise_for_status()
-        meta = resp.json()["chart"]["result"][0]["meta"]
+        result = resp.json()["chart"]["result"]
+        if not result:
+            raise ValueError(f"Yahoo Finance returned empty result for {index_code}")
+        meta = result[0]["meta"]
     price = float(meta["regularMarketPrice"])
     prev = float(meta.get("chartPreviousClose") or 0)
     change = price - prev if prev else 0.0
