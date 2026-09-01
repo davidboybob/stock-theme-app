@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 import asyncio
+import logging
 from datetime import datetime
 from typing import List, Set, Optional
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -155,7 +156,7 @@ async def _check_alerts() -> None:
                 )
                 await _broadcast(notification.model_dump())
         except Exception:
-            pass
+            logging.exception("alert check failed for alert_id=%s", alert.id)
 
 
 async def _snapshot_themes() -> None:
